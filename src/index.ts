@@ -1,19 +1,21 @@
 /**
- * Cloudflare Worker: genera el dossier EX-32 d'un cas i l'adjunta a la fila.
+ * Cloudflare Worker: genera el dossier (EX-31 o EX-32) d'un cas i l'adjunta
+ * a la fila d'Airtable.
  *
  * Flux:
- *   Airtable button → Automation script → POST /generate
+ *   Airtable button → Scripting extension → POST /generate
  *     → Worker valida el shared secret
  *     → Fetch del record d'Airtable
+ *     → Decideix EX-31 o EX-32 segons "Via legal" (via getTemplateInfo)
  *     → Neteja el camp d'attachment (replace semantics)
  *     → Carrega el template PDF des dels static assets
  *     → Omple els camps (decision tree a fillPdf.ts)
  *     → Puja el PDF a Airtable via uploadAttachment
- *     → Retorna 200 amb {ok: true, filename}
+ *     → Retorna 200 amb {ok, filename, formCode}
  */
 
 import { AirtableClient } from "./airtable";
-import { fillCasPdf } from "./fillPdf";
+import { getTemplateInfo } from "./fillPdf";
 import { CASOS } from "./mappings";
 
 export interface Env {
@@ -82,24 +84,28 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
     // 3. Fetch case data from Airtable
     const record = await airtable.getRecord(tableId, body.recordId);
 
-    // Build filename from case code + surname
-    const codi = getStr(record.fields, CASOS.codi) || record.id;
-    const filename = `${codi}_EX32.pdf`;
+    // 4. Decide which form to generate based on "Via legal"
+    const viaLegal = getStrFromField(record.fields, CASOS.viaLegal);
+    const { templateFile, formCode, fill } = getTemplateInfo(viaLegal);
 
-    // 4. Load PDF template from bundled static assets
-    const templateResp = await env.ASSETS.fetch("https://placeholder/EX32_oficial.pdf");
+    // Build filename from case code + form code (e.g., RR-2026-002-GONZALEZ_EX31.pdf)
+    const codi = getStrFromField(record.fields, CASOS.codi) || record.id;
+    const filename = `${codi}_${formCode}.pdf`;
+
+    // 5. Load PDF template from bundled static assets
+    const templateResp = await env.ASSETS.fetch(`https://placeholder/${templateFile}`);
     if (!templateResp.ok) {
-      throw new Error(`Failed to load template PDF: ${templateResp.status}`);
+      throw new Error(`Failed to load template ${templateFile}: ${templateResp.status}`);
     }
     const templateBytes = await templateResp.arrayBuffer();
 
-    // 5. Fill the PDF using the decision tree
-    const filledBytes = await fillCasPdf(templateBytes, record);
+    // 6. Fill the PDF using the selected fill function
+    const filledBytes = await fill(templateBytes, record);
 
-    // 6. Clear existing attachments (replace semantics)
+    // 7. Clear existing attachments (replace semantics)
     await airtable.clearAttachmentField(tableId, body.recordId, fieldId);
 
-    // 7. Upload the generated PDF
+    // 8. Upload the generated PDF
     await airtable.uploadAttachment({
       recordId: body.recordId,
       fieldIdOrName: fieldId,
@@ -112,6 +118,8 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
       ok: true,
       recordId: body.recordId,
       filename,
+      formCode,
+      viaLegal,
       sizeBytes: filledBytes.length,
     });
   } catch (err) {
@@ -128,8 +136,16 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-function getStr(fields: Record<string, unknown>, fieldId: string): string {
+/**
+ * Read a field as string. Airtable returns singleSelect as {id, name, color},
+ * so we extract the name when applicable.
+ */
+function getStrFromField(fields: Record<string, unknown>, fieldId: string): string {
   const v = fields[fieldId];
+  if (v == null) return "";
   if (typeof v === "string") return v;
-  return "";
+  if (typeof v === "object" && "name" in (v as object)) {
+    return String((v as { name: string }).name);
+  }
+  return String(v);
 }

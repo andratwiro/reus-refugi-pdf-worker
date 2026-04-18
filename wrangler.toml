@@ -1,0 +1,24 @@
+name = "reus-refugi-pdf-worker"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets — the EX-32 template lives inside the Worker bundle.
+# No R2, no external hosting. Accessible at runtime via env.ASSETS.fetch().
+[assets]
+directory = "./assets"
+binding = "ASSETS"
+
+# Logs & observability
+[observability]
+enabled = true
+
+# Secrets are set via `wrangler secret put`, NOT in this file:
+#   npx wrangler secret put AIRTABLE_TOKEN
+#   npx wrangler secret put SHARED_SECRET
+#
+# Public (non-secret) config vars can go here:
+[vars]
+AIRTABLE_BASE_ID = "appWuXncpGWaFTR4M"
+CASOS_TABLE_ID = "tblaz9eNKzTI7YbM2"
+DOSSIER_FIELD_ID = "fldVBsux4CdQkELmg"

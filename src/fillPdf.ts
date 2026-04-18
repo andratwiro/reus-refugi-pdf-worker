@@ -289,3 +289,244 @@ function nacionalitatAPais(nac: string): string {
   };
   return map[nac] || nac;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  EX-31 — Solicitants de protecció internacional (DA 20ª)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Omple l'EX-31 amb les dades d'un cas de DA 20ª.
+ *
+ * Diferències principals amb EX-32:
+ *   - Checkboxes numerats 141-188 (en lloc de 1-65)
+ *   - Sexe: X=187, H=141, M=142
+ *   - Estat civil: 143(S), 144(C), 145(V), 146(D), 147(Sp)
+ *   - Tipo autorización: Casilla148 (Solicitante PI) + 154 (Dehú) sempre marcats
+ *   - NO té Annex II (vulnerabilitat) — només Annex I-1 i I-2
+ *   - Annex I-2 sexe: X=188, H=176, M=177
+ *   - Annex I-2 civil: 178(S), 179(C), 180(V), 181(D), 182(Sp)
+ */
+export async function fillEx31Pdf(
+  templateBytes: ArrayBuffer,
+  record: { id: string; fields: Record<string, unknown> },
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const form = pdfDoc.getForm();
+
+  const f = record.fields;
+  const E = ENTITAT_REUS_REFUGI;
+
+  // Helpers (idèntics a fillCasPdf, duplicats per simplicitat)
+  const str = (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v.toUpperCase().trim();
+    if (Array.isArray(v)) return "";
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name).toUpperCase().trim();
+    }
+    return String(v).toUpperCase().trim();
+  };
+
+  const rawStr = (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name);
+    }
+    return String(v);
+  };
+
+  const setText = (fieldName: string, value: string): void => {
+    try {
+      form.getTextField(fieldName).setText(value || "");
+    } catch {
+      // Field doesn't exist — silently skip
+    }
+  };
+
+  const check = (fieldName: string): void => {
+    try {
+      form.getCheckBox(fieldName).check();
+    } catch {
+      // Checkbox doesn't exist — silently skip
+    }
+  };
+
+  const splitIsoDate = (iso: string): [string, string, string] => {
+    if (!iso || typeof iso !== "string") return ["", "", ""];
+    const parts = iso.split("-");
+    if (parts.length !== 3) return ["", "", ""];
+    return [parts[2], parts[1], parts[0]];
+  };
+
+  // Dades del cas
+  const passaport = str(CASOS.passaport);
+  const nom = str(CASOS.nom);
+  const cognom1 = str(CASOS.cognom1);
+  const cognom2 = str(CASOS.cognom2);
+  const [d, m, y] = splitIsoDate(rawStr(CASOS.dataNaixement));
+  const lloc = str(CASOS.llocNaixement);
+  const nacionalitat = str(CASOS.nacionalitat);
+  const paisOrigen = nacionalitatAPais(nacionalitat);
+  const sexe = getFirstLetter(rawStr(CASOS.sexe));
+  const civil = getCivilCode(rawStr(CASOS.estatCivil));
+  const pareNom = str(CASOS.pareNom);
+  const pareCognom1 = str(CASOS.pareCognom1);
+  const pareCognom2 = str(CASOS.pareCognom2);
+  const mareNom = str(CASOS.mareNom);
+  const mareCognom1 = str(CASOS.mareCognom1);
+  const mareCognom2 = str(CASOS.mareCognom2);
+  const domicili = str(CASOS.domicili);
+  const localitat = str(CASOS.localitat);
+  const cp = str(CASOS.cp);
+  const provincia = str(CASOS.provincia);
+  const telefon = rawStr(CASOS.telefon);
+  const email = rawStr(CASOS.email);
+  const menor = Boolean(f[CASOS.menorEdat]);
+  const { carrer, num, pis } = splitAddress(domicili);
+  const idPaisOrigen = str(CASOS.idPaisOrigen);
+
+  // ── Secció 1 — Dades persona extranjera ─────────────────────────────────
+  setText("Texto1", passaport);
+  setText("Texto5", cognom1);
+  setText("Texto6", cognom2);
+  setText("Texto7", nom);
+  setText("Texto8", d);
+  setText("Texto9", m);
+  setText("Texto10", y);
+  setText("Texto11", lloc);
+  setText("Texto12", paisOrigen);
+  setText("Texto13", nacionalitat);
+  setText("Texto14", joinName(pareNom, pareCognom1, pareCognom2));
+  setText("Texto15", joinName(mareNom, mareCognom1, mareCognom2));
+  setText("Texto16", carrer);
+  setText("Texto17", num);
+  setText("Texto18", pis);
+  setText("Texto19", localitat);
+  setText("Texto20", cp);
+  setText("Texto21", provincia);
+  setText("Texto22", telefon);
+  setText("Texto23", email);
+
+  // Sexe: EX-31 usa Casilla187/141/142 (X/H/M)
+  const sexeMap: Record<string, string> = { X: "187", H: "141", M: "142" };
+  if (sexe in sexeMap) check(`Casilla de verificación${sexeMap[sexe]}`);
+
+  // Estat civil: Casilla143-147 (S/C/V/D/Sp)
+  const civilMap: Record<string, string> = {
+    S: "143", C: "144", V: "145", D: "146", Sp: "147",
+  };
+  if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
+
+  // ── Secció 2 — Representant (Reus Refugi via RECEX) ─────────────────────
+  setText("Texto27", E.nom);
+  setText("Texto28", E.nif);
+  setText("Texto29", E.domicili);
+  setText("Texto32", E.localitat);
+  setText("Texto33", E.cp);
+  setText("Texto34", E.provincia);
+  setText("Texto35", E.telefon);
+  setText("Texto36", E.email);
+
+  // ── Secció 3 — Domicili notificacions (= secció 2) ─────────────────────
+  setText("Texto40", E.nom);
+  setText("Texto41", E.nif);
+  setText("Texto42", E.domicili);
+  setText("Texto45", E.localitat);
+  setText("Texto46", E.cp);
+  setText("Texto47", E.provincia);
+  setText("Texto48", E.telefon);
+  setText("Texto49", E.email);
+
+  // ── Secció 4 — Tipo autorización ────────────────────────────────────────
+  // Per DA 20ª el cas per defecte és "Solicitante PI" (Casilla148).
+  // El nº d'expedient d'asil (Texto50) l'omple el voluntari a mà.
+  check("Casilla de verificación148");
+
+  // Si el cas és un menor, marca també la casella corresponent.
+  // Per defecte assumim "nacido en España". Ajustable segons context del cas.
+  if (menor) {
+    check("Casilla de verificación149");
+  }
+
+  // CONSIENTO Dehú (RECEX → sempre)
+  check("Casilla de verificación154");
+
+  // ── Annex I-2 — Sol·licitud antecedents al país d'origen ───────────────
+  setText("Texto117", passaport);
+  setText("Texto118", idPaisOrigen);
+  setText("Texto119", cognom1);
+  setText("Texto120", cognom2);
+  setText("Texto121", nom);
+  setText("Texto122", d);
+  setText("Texto123", m);
+  setText("Texto124", y);
+  setText("Texto125", lloc);
+  setText("Texto127", paisOrigen);
+  setText("Texto128", nacionalitat);
+  setText("Texto129", pareNom);
+  setText("Texto130", pareCognom1);
+  setText("Texto131", pareCognom2);
+  setText("Texto132", mareNom);
+  setText("Texto133", mareCognom1);
+  setText("Texto134", mareCognom2);
+  setText("Texto183", paisOrigen); // País al que solicitar antecedents
+
+  // Sexe Annex I-2: Casilla188/176/177 (X/H/M)
+  const sexeMapI2: Record<string, string> = { X: "188", H: "176", M: "177" };
+  if (sexe in sexeMapI2) check(`Casilla de verificación${sexeMapI2[sexe]}`);
+
+  // Civil Annex I-2: Casilla178-182 (S/C/V/D/Sp)
+  const civilMapI2: Record<string, string> = {
+    S: "178", C: "179", V: "180", D: "181", Sp: "182",
+  };
+  if (civil in civilMapI2) check(`Casilla de verificación${civilMapI2[civil]}`);
+
+  // Lloc + data signatura Annex I-2
+  const now = new Date();
+  setText("Texto135", localitat);
+  setText("Texto136", String(now.getUTCDate()));
+  setText("Texto137", MESOS_CA[now.getUTCMonth()]);
+  setText("Texto138", String(now.getUTCFullYear()));
+
+  return await pdfDoc.save();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Dispatcher — Tria quin template i funció usar segons "Via legal"
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type FormCode = "EX31" | "EX32";
+export type FillFn = (
+  templateBytes: ArrayBuffer,
+  record: { id: string; fields: Record<string, unknown> },
+) => Promise<Uint8Array>;
+
+export interface TemplateInfo {
+  templateFile: string;
+  formCode: FormCode;
+  fill: FillFn;
+}
+
+/**
+ * Decideix quin formulari usar segons la Via legal del cas.
+ *
+ * DA 20ª (sol·licitants de protecció internacional) → EX-31
+ * DA 21ª i famílies → EX-32 (el comportament existent)
+ */
+export function getTemplateInfo(viaLegal: string): TemplateInfo {
+  if (viaLegal.includes("DA 20ª")) {
+    return {
+      templateFile: "EX31_oficial.pdf",
+      formCode: "EX31",
+      fill: fillEx31Pdf,
+    };
+  }
+  return {
+    templateFile: "EX32_oficial.pdf",
+    formCode: "EX32",
+    fill: fillCasPdf,
+  };
+}

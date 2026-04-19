@@ -122,22 +122,7 @@ export async function fillCasPdf(
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
   // ── Seccions 2 i 3 — Representant + notificacions ───────────────────────
-  setText("Texto27", E.nom);
-  setText("Texto28", E.nif);
-  setText("Texto29", E.domicili);
-  setText("Texto32", E.localitat);
-  setText("Texto33", E.cp);
-  setText("Texto34", E.provincia);
-  setText("Texto35", E.telefon);
-  setText("Texto36", E.email);
-  setText("Texto40", E.nom);
-  setText("Texto41", E.nif);
-  setText("Texto42", E.domicili);
-  setText("Texto45", E.localitat);
-  setText("Texto46", E.cp);
-  setText("Texto47", E.provincia);
-  setText("Texto48", E.telefon);
-  setText("Texto49", E.email);
+  fillEntitySections(setText);
 
   // ── Secció 4 — Decision tree ────────────────────────────────────────────
   if (viaLegal.includes("DA 21ª – Laboral")) {
@@ -196,7 +181,7 @@ export async function fillCasPdf(
     setText("Texto145", E.nom);
     setText("Texto146", E.nif);
     setText("Texto147", E.recexNum);
-    setText("Texto148", `${E.domicili}, ${E.localitat} ${E.cp} ${E.provincia}`);
+    setText("Texto148", composeEntityAddressOneLine());
     setText("Texto149", `${E.telefon} / ${E.email}`);
     setText("Texto150", `${nom} ${cognom1} ${cognom2}`.trim());
     setText("Texto151", passaport);
@@ -303,23 +288,8 @@ export async function fillEx31Pdf(
   };
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
-  // Seccions 2-3
-  setText("Texto27", E.nom);
-  setText("Texto28", E.nif);
-  setText("Texto29", E.domicili);
-  setText("Texto32", E.localitat);
-  setText("Texto33", E.cp);
-  setText("Texto34", E.provincia);
-  setText("Texto35", E.telefon);
-  setText("Texto36", E.email);
-  setText("Texto40", E.nom);
-  setText("Texto41", E.nif);
-  setText("Texto42", E.domicili);
-  setText("Texto45", E.localitat);
-  setText("Texto46", E.cp);
-  setText("Texto47", E.provincia);
-  setText("Texto48", E.telefon);
-  setText("Texto49", E.email);
+  // Seccions 2 i 3 — Representant + notificacions
+  fillEntitySections(setText);
 
   // Secció 4
   check("Casilla de verificación148");
@@ -531,6 +501,67 @@ async function embedSignature(
       height: scaled.height,
     });
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Entity (Reus Refugi) — shared helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fill sections 2 (representant) and 3 (notificacions) of the main form.
+ * These sections are structurally identical across EX-31 and EX-32 and use
+ * the same widget numbering (Texto27-39 for §2, Texto40-49 for §3; §3 has no
+ * natural-person representative sub-fields).
+ */
+function fillEntitySections(
+  setText: (fieldName: string, value: string) => void,
+): void {
+  const E = ENTITAT_REUS_REFUGI;
+
+  // §2 — DATOS DEL REPRESENTANTE A EFECTOS DE PRESENTACIÓN DE LA SOLICITUD
+  setText("Texto27", E.nom);
+  setText("Texto28", E.nif);
+  setText("Texto29", E.domiciliCarrer);
+  setText("Texto30", E.domiciliNum);
+  setText("Texto31", E.domiciliPis);
+  setText("Texto32", E.localitat);
+  setText("Texto33", E.cp);
+  setText("Texto34", E.provincia);
+  setText("Texto35", E.telefon);
+  setText("Texto36", E.email);
+  // Natural-person representative of the entity
+  setText("Texto37", E.representantNom);
+  setText("Texto38", E.representantDni);
+  setText("Texto39", E.representantTitol);
+
+  // §3 — DOMICILIO A EFECTOS DE NOTIFICACIONES (same address as §2)
+  setText("Texto40", E.nom);
+  setText("Texto41", E.nif);
+  setText("Texto42", E.domiciliCarrer);
+  setText("Texto43", E.domiciliNum);
+  setText("Texto44", E.domiciliPis);
+  setText("Texto45", E.localitat);
+  setText("Texto46", E.cp);
+  setText("Texto47", E.provincia);
+  setText("Texto48", E.telefon);
+  setText("Texto49", E.email);
+}
+
+/**
+ * Compose the entity's full postal address as one line, for sections of the
+ * form that have only a single "Dirección" field (e.g. Annex II §1).
+ */
+function composeEntityAddressOneLine(): string {
+  const E = ENTITAT_REUS_REFUGI;
+  return [
+    `${E.domiciliCarrer} ${E.domiciliNum}`.trim(),
+    E.domiciliPis,
+    E.localitat,
+    E.cp,
+    E.provincia,
+  ]
+    .filter((s) => s && s.trim().length > 0)
+    .join(", ");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

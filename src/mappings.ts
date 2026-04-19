@@ -48,9 +48,12 @@ export const CASOS = {
   menorEdat: "fldhrlDmTOHDrCStY",
 
   // Família — links entre casos de la mateixa unitat familiar que tramiten a la vegada
-  casReferent: "fldLJrBVgoAz9Y72g",     // multipleRecordLinks → cas del sol·licitant principal
-  casosVinculats: "fldJ2FTtl9YXzw9zy",  // multipleRecordLinks (invers de casReferent) → dependents
-  parentiuReferent: "fldpt5IEuZ8yWAnuk", // singleSelect: Fill/a | Cònjuge/parella registrada | Ascendent | Altre
+  casReferent: "fldLJrBVgoAz9Y72g",
+  casosVinculats: "fldJ2FTtl9YXzw9zy",
+  parentiuReferent: "fldpt5IEuZ8yWAnuk",
+
+  // Firma digital (PNG capturada via Tally obV0rP)
+  firmaDigital: "fld5n0vqeCg5A0USt",
 
   // Output target
   dossierGenerat: "fldVBsux4CdQkELmg",
@@ -58,7 +61,6 @@ export const CASOS = {
 
 /**
  * Dades fixes de l'entitat representant (Reus Refugi).
- * En producció podrien viure a una taula "Config" d'Airtable per editabilitat.
  */
 export const ENTITAT_REUS_REFUGI = {
   nom: "ASOCIACION REUS REFUGI",
@@ -91,17 +93,10 @@ export const CIRCUMSTANCIA_CASILLA: Record<string, string> = {
 };
 
 /**
- * Widget names inside the Section-5 mini-template (per form).
- *
- * These are the form-field names found on page 2 of the respective main template,
- * preserved in the extracted section-5 PDFs. They do NOT match the main form's
- * section-5 numbering because EX-31 uses non-sequential checkbox numbering.
- *
- * The mini-template fills these, flattens, and gets merged after page 2 of the
- * main form. See fillSection5Page() in fillPdf.ts.
+ * Widget names inside the Section-5 area. Identical between the main form's
+ * page 2 and the extracted section-5 mini-template (same ministry PDF origin).
  */
 export const SECTION5_EX31 = {
-  // 15 text fields
   pasaporte: "Texto51",
   nieLetter: "Texto52",
   nieNumber: "Texto53",
@@ -117,17 +112,14 @@ export const SECTION5_EX31 = {
   nacionalitat: "Texto63",
   pareNomComplet: "Texto64",
   mareNomComplet: "Texto65",
-  // Sexo (X/H/M)
   sexoX: "Casilla de verificación186",
   sexoH: "Casilla de verificación155",
   sexoM: "Casilla de verificación156",
-  // Estat civil (S/C/V/D/Sp)
   civilS: "Casilla de verificación157",
   civilC: "Casilla de verificación158",
   civilV: "Casilla de verificación159",
   civilD: "Casilla de verificación160",
   civilSp: "Casilla de verificación161",
-  // Parentesco (Hijo/Cónyuge/Ascendiente)
   parentiuHijo: "Casilla de verificación162",
   parentiuConyuge: "Casilla de verificación163",
   parentiuAscendiente: "Casilla de verificación164",
@@ -161,3 +153,37 @@ export const SECTION5_EX32 = {
   parentiuConyuge: "Casilla de verificación28",
   parentiuAscendiente: "Casilla de verificación29",
 } as const;
+
+/**
+ * Coordinates of the FIRMA (signature) boxes on each form, in PDF-native page
+ * coordinates (origin = bottom-left, y increases upward).
+ *
+ * Empirically verified: plain `page.drawImage(...)` with these coords renders
+ * correctly on both EX-31 (which has a page-level CTM on each page) and EX-32
+ * (no CTM). No inverse-CTM compensation is needed.
+ *
+ * Note: Page 8 of EX-32 (Annex II) has a signature box for the ENTITY (Reus
+ * Refugi certifying vulnerability), NOT the applicant — intentionally excluded.
+ */
+export interface FirmaBox {
+  /** 0-based page index (1 = page 2) */
+  pageIndex: number;
+  /** Bottom-left x (PDF-native coords) */
+  x: number;
+  /** Bottom-left y (PDF-native coords) */
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const FIRMA_BOXES_EX31: FirmaBox[] = [
+  { pageIndex: 1, x: 274.9, y: 473.62, width: 231.2, height: 32.1 },  // Page 2: Solicitante
+  { pageIndex: 3, x: 303.7, y: 110.52, width: 229.3, height: 36.4 },  // Page 4: Declarante (Anexo I-1)
+  { pageIndex: 4, x: 295.2, y: 203.32, width: 205.0, height: 58.4 },  // Page 5: Declarante (Anexo I-2)
+];
+
+export const FIRMA_BOXES_EX32: FirmaBox[] = [
+  { pageIndex: 1, x: 267.9, y: 369.4, width: 247.6, height: 48.3 },   // Page 2: Solicitante
+  { pageIndex: 3, x: 291.3, y: 68.5,  width: 245.6, height: 45.3 },   // Page 4: Declarante (Anexo I-1)
+  { pageIndex: 4, x: 273.3, y: 174.5, width: 247.6, height: 98.0 },   // Page 5: Declarante (Anexo I-2)
+];

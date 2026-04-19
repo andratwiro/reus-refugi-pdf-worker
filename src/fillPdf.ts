@@ -1,5 +1,11 @@
 import { PDFDocument } from "pdf-lib";
-import { CASOS, ENTITAT_REUS_REFUGI, CIRCUMSTANCIA_CASILLA } from "./mappings";
+import {
+  CASOS,
+  ENTITAT_REUS_REFUGI,
+  CIRCUMSTANCIA_CASILLA,
+  SECTION5_EX31,
+  SECTION5_EX32,
+} from "./mappings";
 
 /**
  * Omple l'EX-32 amb les dades d'un cas. Retorna el PDF com a Uint8Array.
@@ -12,6 +18,10 @@ import { CASOS, ENTITAT_REUS_REFUGI, CIRCUMSTANCIA_CASILLA } from "./mappings";
  *
  * L'Annex I-2 (sol·licitud antecedents) s'omple sempre amb les dades del país
  * d'origen (en producció: un PDF per cada país de residència dels últims 5 anys).
+ *
+ * NOTA: La secció 5 (familiar de otro extranjero) NO s'omple aquí. Els membres
+ * familiars que tramiten simultàniament es gestionen amb inserts A4 separats
+ * via fillSection5Page() + mergePdfWithInserts(), orquestrat des d'index.ts.
  */
 export async function fillCasPdf(
   templateBytes: ArrayBuffer,
@@ -305,6 +315,8 @@ function nacionalitatAPais(nac: string): string {
  *   - NO té Annex II (vulnerabilitat) — només Annex I-1 i I-2
  *   - Annex I-2 sexe: X=188, H=176, M=177
  *   - Annex I-2 civil: 178(S), 179(C), 180(V), 181(D), 182(Sp)
+ *
+ * NOTA: Com fillCasPdf, la secció 5 no s'omple aquí (gestionada via inserts).
  */
 export async function fillEx31Pdf(
   templateBytes: ArrayBuffer,
@@ -495,6 +507,180 @@ export async function fillEx31Pdf(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Secció 5 — Fill d'una pàgina insert per membre familiar
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Omple una pàgina insert de secció 5 amb les dades d'un membre familiar.
+ * Retorna el PDF com a Uint8Array, AMB els camps aplanats (form.flatten()).
+ *
+ * L'aplanament és essencial: quan aquest insert es fusiona amb el formulari
+ * principal, els noms dels widgets coincideixen (són els mateixos fields de la
+ * pàgina 2 de l'EX-31/EX-32). Aplanar converteix les dades a contingut estàtic
+ * i elimina les entrades d'AcroForm, evitant col·lisions de noms.
+ *
+ * @param templateBytes  El PDF buit d'insert (EX31_seccion5.pdf o equivalent)
+ * @param member         Record d'Airtable del membre familiar (el "referent"
+ *                       per un dependent, o un dependent per un principal)
+ * @param formCode       Per triar el mapa de widgets (EX-31 i EX-32 els tenen diferents)
+ */
+export async function fillSection5Page(
+  templateBytes: ArrayBuffer,
+  member: { id: string; fields: Record<string, unknown> },
+  formCode: FormCode,
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const form = pdfDoc.getForm();
+  const f = member.fields;
+  const MAP = formCode === "EX31" ? SECTION5_EX31 : SECTION5_EX32;
+
+  // Helpers (idèntics al patró de fillCasPdf)
+  const str = (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v.toUpperCase().trim();
+    if (Array.isArray(v)) return "";
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name).toUpperCase().trim();
+    }
+    return String(v).toUpperCase().trim();
+  };
+
+  const rawStr = (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name);
+    }
+    return String(v);
+  };
+
+  const setText = (name: string, value: string) => {
+    try {
+      form.getTextField(name).setText(value || "");
+    } catch { /* skip */ }
+  };
+
+  const check = (name: string) => {
+    try {
+      form.getCheckBox(name).check();
+    } catch { /* skip */ }
+  };
+
+  const splitIsoDate = (iso: string): [string, string, string] => {
+    if (!iso || typeof iso !== "string") return ["", "", ""];
+    const parts = iso.split("-");
+    if (parts.length !== 3) return ["", "", ""];
+    return [parts[2], parts[1], parts[0]];
+  };
+
+  // Dades del membre
+  const passaport = str(CASOS.passaport);
+  const nie = str(CASOS.nie);
+  const nom = str(CASOS.nom);
+  const cognom1 = str(CASOS.cognom1);
+  const cognom2 = str(CASOS.cognom2);
+  const [d, m, y] = splitIsoDate(rawStr(CASOS.dataNaixement));
+  const lloc = str(CASOS.llocNaixement);
+  const nacionalitat = str(CASOS.nacionalitat);
+  const paisOrigen = nacionalitatAPais(nacionalitat);
+  const sexe = getFirstLetter(rawStr(CASOS.sexe));
+  const civil = getCivilCode(rawStr(CASOS.estatCivil));
+  const pareNomComplet = joinName(
+    str(CASOS.pareNom), str(CASOS.pareCognom1), str(CASOS.pareCognom2),
+  );
+  const mareNomComplet = joinName(
+    str(CASOS.mareNom), str(CASOS.mareCognom1), str(CASOS.mareCognom2),
+  );
+  const parentiu = rawStr(CASOS.parentiuReferent).trim();
+
+  // Text fields
+  setText(MAP.pasaporte, passaport);
+  setText(MAP.nieLetter, ""); // No desglossem NIE a Airtable; deixem el camp complet a nieNumber
+  setText(MAP.nieNumber, nie);
+  setText(MAP.nieCheck, "");
+  setText(MAP.cognom1, cognom1);
+  setText(MAP.cognom2, cognom2);
+  setText(MAP.nom, nom);
+  setText(MAP.diaNac, d);
+  setText(MAP.mesNac, m);
+  setText(MAP.anyNac, y);
+  setText(MAP.lloc, lloc);
+  setText(MAP.pais, paisOrigen);
+  setText(MAP.nacionalitat, nacionalitat);
+  setText(MAP.pareNomComplet, pareNomComplet);
+  setText(MAP.mareNomComplet, mareNomComplet);
+
+  // Sexo
+  if (sexe === "H") check(MAP.sexoH);
+  else if (sexe === "M") check(MAP.sexoM);
+  else if (sexe === "X") check(MAP.sexoX);
+
+  // Estat civil
+  const civilCheck: Record<string, string> = {
+    S: MAP.civilS, C: MAP.civilC, V: MAP.civilV, D: MAP.civilD, Sp: MAP.civilSp,
+  };
+  if (civil in civilCheck) check(civilCheck[civil]);
+
+  // Parentesco — només 3 valors mapejats; "Altre" queda sense marcar
+  // (probablement el cas no hauria de tramitar-se simultàniament si és "Altre")
+  if (parentiu === "Fill/a") check(MAP.parentiuHijo);
+  else if (parentiu === "Cònjuge/parella registrada") check(MAP.parentiuConyuge);
+  else if (parentiu === "Ascendent") check(MAP.parentiuAscendiente);
+
+  // CRÍTIC: aplanar per evitar col·lisions de noms de camp al merge
+  form.flatten();
+
+  return await pdfDoc.save();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Merge — Fusiona inserts dins del PDF principal just després de la pàgina 2
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fusiona una llista d'inserts A4 dins del PDF principal, just després de la
+ * pàgina especificada (per defecte: pàgina 2, índex 1 — on viu la secció 5
+ * a EX-31 i EX-32).
+ *
+ * Ordre resultant:
+ *   Pàgines 1..insertAfterPageIndex del principal
+ *   + inserts[0], inserts[1], ..., inserts[N-1]
+ *   + pàgines insertAfterPageIndex+1..end del principal
+ */
+export async function mergePdfWithInserts(
+  mainBytes: Uint8Array,
+  insertBytesList: Uint8Array[],
+  insertAfterPageIndex = 1, // Pàgina 2 (índex 1)
+): Promise<Uint8Array> {
+  if (insertBytesList.length === 0) return mainBytes;
+
+  const result = await PDFDocument.create();
+  const mainDoc = await PDFDocument.load(mainBytes);
+  const mainPages = await result.copyPages(mainDoc, mainDoc.getPageIndices());
+
+  // Pàgines del principal fins a insertAfterPageIndex (inclusiu)
+  for (let i = 0; i <= insertAfterPageIndex && i < mainPages.length; i++) {
+    result.addPage(mainPages[i]);
+  }
+
+  // Cada insert (1 pàgina cada un)
+  for (const insertBytes of insertBytesList) {
+    const insertDoc = await PDFDocument.load(insertBytes);
+    const [insertPage] = await result.copyPages(insertDoc, [0]);
+    result.addPage(insertPage);
+  }
+
+  // Pàgines restants del principal
+  for (let i = insertAfterPageIndex + 1; i < mainPages.length; i++) {
+    result.addPage(mainPages[i]);
+  }
+
+  return await result.save();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  Dispatcher — Tria quin template i funció usar segons "Via legal"
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -506,6 +692,7 @@ export type FillFn = (
 
 export interface TemplateInfo {
   templateFile: string;
+  section5TemplateFile: string;
   formCode: FormCode;
   fill: FillFn;
 }
@@ -520,12 +707,14 @@ export function getTemplateInfo(viaLegal: string): TemplateInfo {
   if (viaLegal.includes("DA 20ª")) {
     return {
       templateFile: "EX31_oficial.pdf",
+      section5TemplateFile: "EX31_seccion5.pdf",
       formCode: "EX31",
       fill: fillEx31Pdf,
     };
   }
   return {
     templateFile: "EX32_oficial.pdf",
+    section5TemplateFile: "EX32_seccion5.pdf",
     formCode: "EX32",
     fill: fillCasPdf,
   };

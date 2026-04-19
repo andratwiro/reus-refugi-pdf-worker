@@ -60,18 +60,36 @@ export const CASOS = {
 } as const;
 
 /**
- * Dades fixes de l'entitat representant (Reus Refugi).
+ * Real data from the Generalitat de Catalunya's association registry (form J0225,
+ * Inscripció de dades registrals — Òrgans de govern, 64431 al Registre d'Associacions).
+ *
+ * - `recexNum` stays blank for now; fill it in when we have the specific Registro de
+ *   Colaboradores de Extranjería inscription number from the ministry (the 64431 is
+ *   the Generalitat association registry, NOT the same as RECEX).
+ * - Address is split into carrer/num/pis because sections 2 and 3 of the EX-31/EX-32
+ *   forms have separate Nº (Texto30/43) and Piso (Texto31/44) fields.
  */
 export const ENTITAT_REUS_REFUGI = {
-  nom: "ASOCIACION REUS REFUGI",
-  nif: "G12345678",
-  domicili: "C/ EXEMPLE 1 BAJO",
+  nom: "ASSOCIACIÓ REUS REFUGI",
+  nif: "G55739866",
+
+  domiciliCarrer: "PLAÇA DE PRIM",
+  domiciliNum: "10",
+  domiciliPis: "3º 2ª",
   localitat: "REUS",
   cp: "43201",
   provincia: "TARRAGONA",
-  telefon: "977000000",
+
+  telefon: "619900426",
   email: "info@reusrefugi.cat",
+
+  // TODO: omplir amb el número d'inscripció oficial al RECEX quan el tinguem.
   recexNum: "",
+
+  // Persona física que representa legalment l'entitat.
+  representantNom: "JOSEP XIFRÉ RAMOS AUBIA",
+  representantDni: "39927815E",
+  representantTitol: "PRESIDENTE",
 };
 
 /**

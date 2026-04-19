@@ -1,31 +1,59 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFForm } from "pdf-lib";
 import {
   CASOS,
   ENTITAT_REUS_REFUGI,
   CIRCUMSTANCIA_CASILLA,
   SECTION5_EX31,
   SECTION5_EX32,
+  FIRMA_BOXES_EX31,
+  FIRMA_BOXES_EX32,
+  FirmaBox,
 } from "./mappings";
 
-/**
- * Omple l'EX-32 amb les dades d'un cas. Retorna el PDF com a Uint8Array.
- *
- * Aplica l'arbre de decisió basat en la "Via legal":
- *   - DA 21ª – Laboral       → irregular + haber trabajado
- *   - DA 21ª – Familiar      → irregular + unidad familiar
- *   - DA 21ª – Vulnerabilitat→ irregular + vulnerabilidad (+ Annex II)
- *   - Familiar de DA21ª      → familiar de solicitante
- *
- * L'Annex I-2 (sol·licitud antecedents) s'omple sempre amb les dades del país
- * d'origen (en producció: un PDF per cada país de residència dels últims 5 anys).
- *
- * NOTA: La secció 5 (familiar de otro extranjero) NO s'omple aquí. Els membres
- * familiars que tramiten simultàniament es gestionen amb inserts A4 separats
- * via fillSection5Page() + mergePdfWithInserts(), orquestrat des d'index.ts.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+//  Types exported for index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type FormCode = "EX31" | "EX32";
+
+export interface FillOptions {
+  /**
+   * First simultaneous applicant (family member) whose data should be filled
+   * into section 5 of the main form's page 2. Subsequent applicants (if any)
+   * go on inserts and are handled outside this function.
+   */
+  firstDependent?: AirtableRecordLike;
+  /**
+   * PNG bytes to embed at every FIRMA DEL SOLICITANTE / FIRMA DEL DECLARANTE
+   * box in the form (pages 2, 4, 5 on both EX-31 and EX-32). Undefined if the
+   * case has no signature captured yet — firma boxes are left blank.
+   */
+  signatureBytes?: Uint8Array;
+}
+
+type AirtableRecordLike = { id: string; fields: Record<string, unknown> };
+
+export type FillFn = (
+  templateBytes: ArrayBuffer,
+  record: AirtableRecordLike,
+  options?: FillOptions,
+) => Promise<Uint8Array>;
+
+export interface TemplateInfo {
+  templateFile: string;
+  section5TemplateFile: string;
+  formCode: FormCode;
+  fill: FillFn;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  EX-32 — DA 21ª i familiars de DA 21ª
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function fillCasPdf(
   templateBytes: ArrayBuffer,
-  record: { id: string; fields: Record<string, unknown> },
+  record: AirtableRecordLike,
+  options: FillOptions = {},
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const form = pdfDoc.getForm();
@@ -33,52 +61,12 @@ export async function fillCasPdf(
   const f = record.fields;
   const E = ENTITAT_REUS_REFUGI;
 
-  // ── Helpers ─────────────────────────────────────────────────────────────
-  const str = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v.toUpperCase().trim();
-    if (Array.isArray(v)) return ""; // linked records / multi-selects handled elsewhere
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name).toUpperCase().trim();
-    }
-    return String(v).toUpperCase().trim();
-  };
+  const str = makeStr(f);
+  const rawStr = makeRawStr(f);
+  const setText = makeSetText(form);
+  const check = makeCheck(form);
 
-  const rawStr = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v;
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name);
-    }
-    return String(v);
-  };
-
-  const setText = (fieldName: string, value: string): void => {
-    try {
-      form.getTextField(fieldName).setText(value || "");
-    } catch {
-      // Field doesn't exist in this template — silently skip.
-    }
-  };
-
-  const check = (fieldName: string): void => {
-    try {
-      form.getCheckBox(fieldName).check();
-    } catch {
-      // Checkbox doesn't exist — silently skip.
-    }
-  };
-
-  const splitIsoDate = (iso: string): [string, string, string] => {
-    if (!iso || typeof iso !== "string") return ["", "", ""];
-    const parts = iso.split("-");
-    if (parts.length !== 3) return ["", "", ""];
-    return [parts[2], parts[1], parts[0]]; // dd, mm, yyyy
-  };
-
-  // ── Extract case data ───────────────────────────────────────────────────
+  // ── Extract case data ────────────────────────────────────────────────────
   const passaport = str(CASOS.passaport);
   const nom = str(CASOS.nom);
   const cognom1 = str(CASOS.cognom1);
@@ -87,7 +75,7 @@ export async function fillCasPdf(
   const lloc = str(CASOS.llocNaixement);
   const nacionalitat = str(CASOS.nacionalitat);
   const paisOrigen = nacionalitatAPais(nacionalitat);
-  const sexe = getFirstLetter(rawStr(CASOS.sexe)); // "H (home)" → "H"
+  const sexe = getFirstLetter(rawStr(CASOS.sexe));
   const civil = getCivilCode(rawStr(CASOS.estatCivil));
   const pareNom = str(CASOS.pareNom);
   const pareCognom1 = str(CASOS.pareCognom1);
@@ -95,21 +83,17 @@ export async function fillCasPdf(
   const mareNom = str(CASOS.mareNom);
   const mareCognom1 = str(CASOS.mareCognom1);
   const mareCognom2 = str(CASOS.mareCognom2);
-
   const domicili = str(CASOS.domicili);
   const localitat = str(CASOS.localitat);
   const cp = str(CASOS.cp);
   const provincia = str(CASOS.provincia);
   const telefon = rawStr(CASOS.telefon);
   const email = rawStr(CASOS.email);
-
   const viaLegal = rawStr(CASOS.viaLegal);
   const menor = Boolean(f[CASOS.menorEdat]);
-
-  // Parse "Carrer Sant Pere 14 2º 1ª" into {carrer, num, pis} best-effort
   const { carrer, num, pis } = splitAddress(domicili);
 
-  // ── Secció 1 — Dades persona extranjera ────────────────────────────────
+  // ── Secció 1 — Dades persona extranjera ──────────────────────────────────
   setText("Texto1", passaport);
   setText("Texto5", cognom1);
   setText("Texto6", cognom2);
@@ -131,15 +115,13 @@ export async function fillCasPdf(
   setText("Texto22", telefon);
   setText("Texto23", email);
 
-  // Sexe (Casilla 1=X, 2=H, 3=M)
   const sexeMap: Record<string, string> = { X: "1", H: "2", M: "3" };
   if (sexe in sexeMap) check(`Casilla de verificación${sexeMap[sexe]}`);
 
-  // Estat civil (Casilla 4=S, 5=C, 6=V, 7=D, 8=Sp)
   const civilMap: Record<string, string> = { S: "4", C: "5", V: "6", D: "7", Sp: "8" };
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
-  // ── Secció 2 — Dades representant (Reus Refugi via RECEX) ──────────────
+  // ── Seccions 2 i 3 — Representant + notificacions ───────────────────────
   setText("Texto27", E.nom);
   setText("Texto28", E.nif);
   setText("Texto29", E.domicili);
@@ -148,8 +130,6 @@ export async function fillCasPdf(
   setText("Texto34", E.provincia);
   setText("Texto35", E.telefon);
   setText("Texto36", E.email);
-
-  // ── Secció 3 — Domicili a efectes de notificacions (= secció 2) ───────
   setText("Texto40", E.nom);
   setText("Texto41", E.nif);
   setText("Texto42", E.domicili);
@@ -159,24 +139,27 @@ export async function fillCasPdf(
   setText("Texto48", E.telefon);
   setText("Texto49", E.email);
 
-  // ── Secció 4 — Decision tree ──────────────────────────────────────────
+  // ── Secció 4 — Decision tree ────────────────────────────────────────────
   if (viaLegal.includes("DA 21ª – Laboral")) {
-    check("Casilla de verificación9");   // Encontrarse irregular
-    check("Casilla de verificación10");  // Haber trabajado
+    check("Casilla de verificación9");
+    check("Casilla de verificación10");
   } else if (viaLegal.includes("DA 21ª – Familiar") && !menor) {
     check("Casilla de verificación9");
-    check("Casilla de verificación11");  // Permanecer con unidad familiar
+    check("Casilla de verificación11");
   } else if (viaLegal.includes("DA 21ª – Vulnerabilitat")) {
     check("Casilla de verificación9");
-    check("Casilla de verificación12");  // Vulnerabilidad
+    check("Casilla de verificación12");
   } else if (viaLegal.includes("Familiar de")) {
     check("Casilla de verificación15");
   }
+  check("Casilla de verificación18"); // CONSIENTO Dehú
 
-  // CONSIENTO Dehú (RECEX → sempre)
-  check("Casilla de verificación18");
+  // ── Secció 5 — Fill with first dependent (if family) ────────────────────
+  if (options.firstDependent) {
+    fillSection5Fields(form, options.firstDependent, "EX32");
+  }
 
-  // ── Annex I-2 — Sol·licitud antecedents al país d'origen ───────────────
+  // ── Annex I-2 — Sol·licitud antecedents ──────────────────────────────────
   const idPaisOrigen = str(CASOS.idPaisOrigen);
   setText("Texto121", passaport);
   setText("Texto122", idPaisOrigen);
@@ -197,20 +180,18 @@ export async function fillCasPdf(
   setText("Texto138", mareCognom2);
   setText("Texto139", paisOrigen);
 
-  // Lloc i data de signatura (a peu de l'Annex I-2)
   const now = new Date();
   setText("Texto140", localitat);
   setText("Texto141", String(now.getUTCDate()));
   setText("Texto142", MESOS_CA[now.getUTCMonth()]);
   setText("Texto143", String(now.getUTCFullYear()));
 
-  // Sexe i estat civil a Annex I-2 (Casilla 44-46 i 47-51)
   const sexeMapI2: Record<string, string> = { X: "44", H: "45", M: "46" };
   if (sexe in sexeMapI2) check(`Casilla de verificación${sexeMapI2[sexe]}`);
   const civilMapI2: Record<string, string> = { S: "47", C: "48", V: "49", D: "50", Sp: "51" };
   if (civil in civilMapI2) check(`Casilla de verificación${civilMapI2[civil]}`);
 
-  // ── Annex II — Certificat vulnerabilitat (només via vulnerabilitat) ───
+  // ── Annex II — Vulnerabilitat ────────────────────────────────────────────
   if (viaLegal.includes("Vulnerabilitat")) {
     setText("Texto145", E.nom);
     setText("Texto146", E.nif);
@@ -221,15 +202,13 @@ export async function fillCasPdf(
     setText("Texto151", passaport);
     setText("Texto152", `${d}/${m}/${y}`);
     setText("Texto153", nacionalitat);
-    setText("Texto154", `${domicili}`);
+    setText("Texto154", domicili);
     setText("Texto155", telefon);
     setText("Texto156", localitat);
     setText("Texto157", cp);
     setText("Texto158", provincia);
+    check("Casilla de verificación53");
 
-    check("Casilla de verificación53"); // Tercer Sector RECEX
-
-    // Circumstàncies marcades (multipleSelects d'Airtable)
     const circArr = Array.isArray(f[CASOS.circumstancies])
       ? (f[CASOS.circumstancies] as Array<{ name?: string } | string>)
       : [];
@@ -241,86 +220,22 @@ export async function fillCasPdf(
     }
   }
 
+  // ── Embed signature on firma boxes (if provided) ────────────────────────
+  if (options.signatureBytes) {
+    await embedSignature(pdfDoc, options.signatureBytes, FIRMA_BOXES_EX32);
+  }
+
   return await pdfDoc.save();
 }
 
-// ── Utilities ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  EX-31 — DA 20ª (Sol·licitants Protecció Internacional)
+// ─────────────────────────────────────────────────────────────────────────────
 
-const MESOS_CA = [
-  "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
-  "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
-];
-
-/** Extract first character from "H (home)" → "H" */
-function getFirstLetter(s: string): string {
-  const trimmed = (s || "").trim();
-  return trimmed.charAt(0).toUpperCase();
-}
-
-/** "Solter/a (S)" → "S" — last char in parens */
-function getCivilCode(s: string): string {
-  if (!s) return "";
-  const match = s.match(/\(([A-Za-z]+)\)/);
-  return match ? match[1] : "";
-}
-
-function joinName(nom: string, c1: string, c2: string): string {
-  return [nom, c1, c2].filter(Boolean).join(" ");
-}
-
-/** Best-effort parse of "CARRER X 14 2º 1ª" into {carrer: "CARRER X", num: "14", pis: "2º 1ª"} */
-function splitAddress(addr: string): { carrer: string; num: string; pis: string } {
-  if (!addr) return { carrer: "", num: "", pis: "" };
-  // Match first number sequence
-  const match = addr.match(/^(.+?)\s+(\d+[A-Za-z]?)\s*(.*)$/);
-  if (match) {
-    return {
-      carrer: match[1].trim(),
-      num: match[2].trim(),
-      pis: (match[3] || "").trim(),
-    };
-  }
-  return { carrer: addr, num: "", pis: "" };
-}
-
-/** Naive nationality → country (extend as needed). */
-function nacionalitatAPais(nac: string): string {
-  const map: Record<string, string> = {
-    "SENEGALESA": "SENEGAL",
-    "MARROQUINA": "MARRUECOS",
-    "VENEÇOLANA": "VENEZUELA",
-    "HONDURENYA": "HONDURAS",
-    "PERUANA": "PERÚ",
-    "COLOMBIANA": "COLOMBIA",
-    "ECUATORIANA": "ECUADOR",
-    "NIGERIANA": "NIGERIA",
-    "MALIANA": "MALÍ",
-    "GAMBIANA": "GAMBIA",
-  };
-  return map[nac] || nac;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  EX-31 — Solicitants de protecció internacional (DA 20ª)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Omple l'EX-31 amb les dades d'un cas de DA 20ª.
- *
- * Diferències principals amb EX-32:
- *   - Checkboxes numerats 141-188 (en lloc de 1-65)
- *   - Sexe: X=187, H=141, M=142
- *   - Estat civil: 143(S), 144(C), 145(V), 146(D), 147(Sp)
- *   - Tipo autorización: Casilla148 (Solicitante PI) + 154 (Dehú) sempre marcats
- *   - NO té Annex II (vulnerabilitat) — només Annex I-1 i I-2
- *   - Annex I-2 sexe: X=188, H=176, M=177
- *   - Annex I-2 civil: 178(S), 179(C), 180(V), 181(D), 182(Sp)
- *
- * NOTA: Com fillCasPdf, la secció 5 no s'omple aquí (gestionada via inserts).
- */
 export async function fillEx31Pdf(
   templateBytes: ArrayBuffer,
-  record: { id: string; fields: Record<string, unknown> },
+  record: AirtableRecordLike,
+  options: FillOptions = {},
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const form = pdfDoc.getForm();
@@ -328,52 +243,11 @@ export async function fillEx31Pdf(
   const f = record.fields;
   const E = ENTITAT_REUS_REFUGI;
 
-  // Helpers (idèntics a fillCasPdf, duplicats per simplicitat)
-  const str = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v.toUpperCase().trim();
-    if (Array.isArray(v)) return "";
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name).toUpperCase().trim();
-    }
-    return String(v).toUpperCase().trim();
-  };
+  const str = makeStr(f);
+  const rawStr = makeRawStr(f);
+  const setText = makeSetText(form);
+  const check = makeCheck(form);
 
-  const rawStr = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v;
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name);
-    }
-    return String(v);
-  };
-
-  const setText = (fieldName: string, value: string): void => {
-    try {
-      form.getTextField(fieldName).setText(value || "");
-    } catch {
-      // Field doesn't exist — silently skip
-    }
-  };
-
-  const check = (fieldName: string): void => {
-    try {
-      form.getCheckBox(fieldName).check();
-    } catch {
-      // Checkbox doesn't exist — silently skip
-    }
-  };
-
-  const splitIsoDate = (iso: string): [string, string, string] => {
-    if (!iso || typeof iso !== "string") return ["", "", ""];
-    const parts = iso.split("-");
-    if (parts.length !== 3) return ["", "", ""];
-    return [parts[2], parts[1], parts[0]];
-  };
-
-  // Dades del cas
   const passaport = str(CASOS.passaport);
   const nom = str(CASOS.nom);
   const cognom1 = str(CASOS.cognom1);
@@ -400,7 +274,7 @@ export async function fillEx31Pdf(
   const { carrer, num, pis } = splitAddress(domicili);
   const idPaisOrigen = str(CASOS.idPaisOrigen);
 
-  // ── Secció 1 — Dades persona extranjera ─────────────────────────────────
+  // Secció 1
   setText("Texto1", passaport);
   setText("Texto5", cognom1);
   setText("Texto6", cognom2);
@@ -422,17 +296,14 @@ export async function fillEx31Pdf(
   setText("Texto22", telefon);
   setText("Texto23", email);
 
-  // Sexe: EX-31 usa Casilla187/141/142 (X/H/M)
   const sexeMap: Record<string, string> = { X: "187", H: "141", M: "142" };
   if (sexe in sexeMap) check(`Casilla de verificación${sexeMap[sexe]}`);
-
-  // Estat civil: Casilla143-147 (S/C/V/D/Sp)
   const civilMap: Record<string, string> = {
     S: "143", C: "144", V: "145", D: "146", Sp: "147",
   };
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
-  // ── Secció 2 — Representant (Reus Refugi via RECEX) ─────────────────────
+  // Seccions 2-3
   setText("Texto27", E.nom);
   setText("Texto28", E.nif);
   setText("Texto29", E.domicili);
@@ -441,8 +312,6 @@ export async function fillEx31Pdf(
   setText("Texto34", E.provincia);
   setText("Texto35", E.telefon);
   setText("Texto36", E.email);
-
-  // ── Secció 3 — Domicili notificacions (= secció 2) ─────────────────────
   setText("Texto40", E.nom);
   setText("Texto41", E.nif);
   setText("Texto42", E.domicili);
@@ -452,21 +321,17 @@ export async function fillEx31Pdf(
   setText("Texto48", E.telefon);
   setText("Texto49", E.email);
 
-  // ── Secció 4 — Tipo autorización ────────────────────────────────────────
-  // Per DA 20ª el cas per defecte és "Solicitante PI" (Casilla148).
-  // El nº d'expedient d'asil (Texto50) l'omple el voluntari a mà.
+  // Secció 4
   check("Casilla de verificación148");
+  if (menor) check("Casilla de verificación149");
+  check("Casilla de verificación154"); // CONSIENTO Dehú
 
-  // Si el cas és un menor, marca també la casella corresponent.
-  // Per defecte assumim "nacido en España". Ajustable segons context del cas.
-  if (menor) {
-    check("Casilla de verificación149");
+  // Secció 5 — first dependent, if family
+  if (options.firstDependent) {
+    fillSection5Fields(form, options.firstDependent, "EX31");
   }
 
-  // CONSIENTO Dehú (RECEX → sempre)
-  check("Casilla de verificación154");
-
-  // ── Annex I-2 — Sol·licitud antecedents al país d'origen ───────────────
+  // Annex I-2
   setText("Texto117", passaport);
   setText("Texto118", idPaisOrigen);
   setText("Texto119", cognom1);
@@ -484,98 +349,54 @@ export async function fillEx31Pdf(
   setText("Texto132", mareNom);
   setText("Texto133", mareCognom1);
   setText("Texto134", mareCognom2);
-  setText("Texto183", paisOrigen); // País al que solicitar antecedents
+  setText("Texto183", paisOrigen);
 
-  // Sexe Annex I-2: Casilla188/176/177 (X/H/M)
   const sexeMapI2: Record<string, string> = { X: "188", H: "176", M: "177" };
   if (sexe in sexeMapI2) check(`Casilla de verificación${sexeMapI2[sexe]}`);
-
-  // Civil Annex I-2: Casilla178-182 (S/C/V/D/Sp)
   const civilMapI2: Record<string, string> = {
     S: "178", C: "179", V: "180", D: "181", Sp: "182",
   };
   if (civil in civilMapI2) check(`Casilla de verificación${civilMapI2[civil]}`);
 
-  // Lloc + data signatura Annex I-2
   const now = new Date();
   setText("Texto135", localitat);
   setText("Texto136", String(now.getUTCDate()));
   setText("Texto137", MESOS_CA[now.getUTCMonth()]);
   setText("Texto138", String(now.getUTCFullYear()));
 
+  // Embed signature (if provided)
+  if (options.signatureBytes) {
+    await embedSignature(pdfDoc, options.signatureBytes, FIRMA_BOXES_EX31);
+  }
+
   return await pdfDoc.save();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Secció 5 — Fill d'una pàgina insert per membre familiar
-// ═══════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  Secció 5 — Shared field-fill logic + insert-page wrapper
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Omple una pàgina insert de secció 5 amb les dades d'un membre familiar.
- * Retorna el PDF com a Uint8Array, AMB els camps aplanats (form.flatten()).
+ * Fills section 5 widget values on the given form. Does NOT flatten — the
+ * caller decides whether to flatten (inserts yes, main form no).
  *
- * L'aplanament és essencial: quan aquest insert es fusiona amb el formulari
- * principal, els noms dels widgets coincideixen (són els mateixos fields de la
- * pàgina 2 de l'EX-31/EX-32). Aplanar converteix les dades a contingut estàtic
- * i elimina les entrades d'AcroForm, evitant col·lisions de noms.
- *
- * @param templateBytes  El PDF buit d'insert (EX31_seccion5.pdf o equivalent)
- * @param member         Record d'Airtable del membre familiar (el "referent"
- *                       per un dependent, o un dependent per un principal)
- * @param formCode       Per triar el mapa de widgets (EX-31 i EX-32 els tenen diferents)
+ * Used in two paths:
+ *   - fillCasPdf/fillEx31Pdf: fills page 2's section 5 for the first family member
+ *   - fillSection5Page: fills the insert mini-template, which is then flattened
  */
-export async function fillSection5Page(
-  templateBytes: ArrayBuffer,
-  member: { id: string; fields: Record<string, unknown> },
+function fillSection5Fields(
+  form: PDFForm,
+  member: AirtableRecordLike,
   formCode: FormCode,
-): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  const form = pdfDoc.getForm();
+): void {
   const f = member.fields;
   const MAP = formCode === "EX31" ? SECTION5_EX31 : SECTION5_EX32;
 
-  // Helpers (idèntics al patró de fillCasPdf)
-  const str = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v.toUpperCase().trim();
-    if (Array.isArray(v)) return "";
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name).toUpperCase().trim();
-    }
-    return String(v).toUpperCase().trim();
-  };
+  const str = makeStr(f);
+  const rawStr = makeRawStr(f);
+  const setText = makeSetText(form);
+  const check = makeCheck(form);
 
-  const rawStr = (fieldId: string): string => {
-    const v = f[fieldId];
-    if (v == null) return "";
-    if (typeof v === "string") return v;
-    if (typeof v === "object" && "name" in (v as object)) {
-      return String((v as { name: string }).name);
-    }
-    return String(v);
-  };
-
-  const setText = (name: string, value: string) => {
-    try {
-      form.getTextField(name).setText(value || "");
-    } catch { /* skip */ }
-  };
-
-  const check = (name: string) => {
-    try {
-      form.getCheckBox(name).check();
-    } catch { /* skip */ }
-  };
-
-  const splitIsoDate = (iso: string): [string, string, string] => {
-    if (!iso || typeof iso !== "string") return ["", "", ""];
-    const parts = iso.split("-");
-    if (parts.length !== 3) return ["", "", ""];
-    return [parts[2], parts[1], parts[0]];
-  };
-
-  // Dades del membre
   const passaport = str(CASOS.passaport);
   const nie = str(CASOS.nie);
   const nom = str(CASOS.nom);
@@ -595,9 +416,8 @@ export async function fillSection5Page(
   );
   const parentiu = rawStr(CASOS.parentiuReferent).trim();
 
-  // Text fields
   setText(MAP.pasaporte, passaport);
-  setText(MAP.nieLetter, ""); // No desglossem NIE a Airtable; deixem el camp complet a nieNumber
+  setText(MAP.nieLetter, "");
   setText(MAP.nieNumber, nie);
   setText(MAP.nieCheck, "");
   setText(MAP.cognom1, cognom1);
@@ -612,47 +432,46 @@ export async function fillSection5Page(
   setText(MAP.pareNomComplet, pareNomComplet);
   setText(MAP.mareNomComplet, mareNomComplet);
 
-  // Sexo
   if (sexe === "H") check(MAP.sexoH);
   else if (sexe === "M") check(MAP.sexoM);
   else if (sexe === "X") check(MAP.sexoX);
 
-  // Estat civil
   const civilCheck: Record<string, string> = {
     S: MAP.civilS, C: MAP.civilC, V: MAP.civilV, D: MAP.civilD, Sp: MAP.civilSp,
   };
   if (civil in civilCheck) check(civilCheck[civil]);
 
-  // Parentesco — només 3 valors mapejats; "Altre" queda sense marcar
-  // (probablement el cas no hauria de tramitar-se simultàniament si és "Altre")
   if (parentiu === "Fill/a") check(MAP.parentiuHijo);
+  else if (parentiu === "Cònjuge / parella registrada") check(MAP.parentiuConyuge);
   else if (parentiu === "Cònjuge/parella registrada") check(MAP.parentiuConyuge);
   else if (parentiu === "Ascendent") check(MAP.parentiuAscendiente);
+}
 
-  // CRÍTIC: aplanar per evitar col·lisions de noms de camp al merge
+/**
+ * Load the section-5 mini-template, fill it for a family member, flatten
+ * (crucial — prevents widget name collisions when merged with the main form),
+ * and return the bytes of the single-page A4 PDF.
+ */
+export async function fillSection5Page(
+  templateBytes: ArrayBuffer,
+  member: AirtableRecordLike,
+  formCode: FormCode,
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const form = pdfDoc.getForm();
+  fillSection5Fields(form, member, formCode);
   form.flatten();
-
   return await pdfDoc.save();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Merge — Fusiona inserts dins del PDF principal just després de la pàgina 2
-// ═══════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  Merge — Insert additional section-5 pages after page 2 of main
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Fusiona una llista d'inserts A4 dins del PDF principal, just després de la
- * pàgina especificada (per defecte: pàgina 2, índex 1 — on viu la secció 5
- * a EX-31 i EX-32).
- *
- * Ordre resultant:
- *   Pàgines 1..insertAfterPageIndex del principal
- *   + inserts[0], inserts[1], ..., inserts[N-1]
- *   + pàgines insertAfterPageIndex+1..end del principal
- */
 export async function mergePdfWithInserts(
   mainBytes: Uint8Array,
   insertBytesList: Uint8Array[],
-  insertAfterPageIndex = 1, // Pàgina 2 (índex 1)
+  insertAfterPageIndex = 1,
 ): Promise<Uint8Array> {
   if (insertBytesList.length === 0) return mainBytes;
 
@@ -660,49 +479,164 @@ export async function mergePdfWithInserts(
   const mainDoc = await PDFDocument.load(mainBytes);
   const mainPages = await result.copyPages(mainDoc, mainDoc.getPageIndices());
 
-  // Pàgines del principal fins a insertAfterPageIndex (inclusiu)
   for (let i = 0; i <= insertAfterPageIndex && i < mainPages.length; i++) {
     result.addPage(mainPages[i]);
   }
-
-  // Cada insert (1 pàgina cada un)
   for (const insertBytes of insertBytesList) {
     const insertDoc = await PDFDocument.load(insertBytes);
     const [insertPage] = await result.copyPages(insertDoc, [0]);
     result.addPage(insertPage);
   }
-
-  // Pàgines restants del principal
   for (let i = insertAfterPageIndex + 1; i < mainPages.length; i++) {
     result.addPage(mainPages[i]);
   }
-
   return await result.save();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Dispatcher — Tria quin template i funció usar segons "Via legal"
-// ═══════════════════════════════════════════════════════════════════════════
-
-export type FormCode = "EX31" | "EX32";
-export type FillFn = (
-  templateBytes: ArrayBuffer,
-  record: { id: string; fields: Record<string, unknown> },
-) => Promise<Uint8Array>;
-
-export interface TemplateInfo {
-  templateFile: string;
-  section5TemplateFile: string;
-  formCode: FormCode;
-  fill: FillFn;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+//  Signature — Embed PNG at each FIRMA box
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Decideix quin formulari usar segons la Via legal del cas.
+ * Embeds the signature PNG at each firma box in the document. The image is
+ * scaled to fit (preserving aspect ratio) with a small margin, then centered
+ * within the box.
  *
- * DA 20ª (sol·licitants de protecció internacional) → EX-31
- * DA 21ª i famílies → EX-32 (el comportament existent)
+ * Uses plain `page.drawImage(...)` — no CTM compensation needed, even on EX-31
+ * (which has a page-level scale+flip CTM). Empirically verified both forms
+ * render correctly this way.
  */
+async function embedSignature(
+  pdfDoc: PDFDocument,
+  signatureBytes: Uint8Array,
+  boxes: FirmaBox[],
+): Promise<void> {
+  const img = await pdfDoc.embedPng(signatureBytes);
+  const pages = pdfDoc.getPages();
+  const MARGIN = 4; // points of padding inside the box
+
+  for (const box of boxes) {
+    if (box.pageIndex < 0 || box.pageIndex >= pages.length) continue;
+    const page = pages[box.pageIndex];
+    const scaled = img.scaleToFit(
+      Math.max(1, box.width - MARGIN),
+      Math.max(1, box.height - MARGIN),
+    );
+    const xOff = (box.width - scaled.width) / 2;
+    const yOff = (box.height - scaled.height) / 2;
+    page.drawImage(img, {
+      x: box.x + xOff,
+      y: box.y + yOff,
+      width: scaled.width,
+      height: scaled.height,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shared helpers (used by all fill paths)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makeStr(f: Record<string, unknown>) {
+  return (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v.toUpperCase().trim();
+    if (Array.isArray(v)) return "";
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name).toUpperCase().trim();
+    }
+    return String(v).toUpperCase().trim();
+  };
+}
+
+function makeRawStr(f: Record<string, unknown>) {
+  return (fieldId: string): string => {
+    const v = f[fieldId];
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && "name" in (v as object)) {
+      return String((v as { name: string }).name);
+    }
+    return String(v);
+  };
+}
+
+function makeSetText(form: PDFForm) {
+  return (fieldName: string, value: string): void => {
+    try {
+      form.getTextField(fieldName).setText(value || "");
+    } catch { /* field doesn't exist in this template; skip */ }
+  };
+}
+
+function makeCheck(form: PDFForm) {
+  return (fieldName: string): void => {
+    try {
+      form.getCheckBox(fieldName).check();
+    } catch { /* checkbox doesn't exist; skip */ }
+  };
+}
+
+function splitIsoDate(iso: string): [string, string, string] {
+  if (!iso || typeof iso !== "string") return ["", "", ""];
+  const parts = iso.split("-");
+  if (parts.length !== 3) return ["", "", ""];
+  return [parts[2], parts[1], parts[0]];
+}
+
+function getFirstLetter(s: string): string {
+  return (s || "").trim().charAt(0).toUpperCase();
+}
+
+function getCivilCode(s: string): string {
+  if (!s) return "";
+  const match = s.match(/\(([A-Za-z]+)\)/);
+  return match ? match[1] : "";
+}
+
+function joinName(nom: string, c1: string, c2: string): string {
+  return [nom, c1, c2].filter(Boolean).join(" ");
+}
+
+function splitAddress(addr: string): { carrer: string; num: string; pis: string } {
+  if (!addr) return { carrer: "", num: "", pis: "" };
+  const match = addr.match(/^(.+?)\s+(\d+[A-Za-z]?)\s*(.*)$/);
+  if (match) {
+    return {
+      carrer: match[1].trim(),
+      num: match[2].trim(),
+      pis: (match[3] || "").trim(),
+    };
+  }
+  return { carrer: addr, num: "", pis: "" };
+}
+
+function nacionalitatAPais(nac: string): string {
+  const map: Record<string, string> = {
+    "SENEGALESA": "SENEGAL",
+    "MARROQUINA": "MARRUECOS",
+    "VENEÇOLANA": "VENEZUELA",
+    "HONDURENYA": "HONDURAS",
+    "PERUANA": "PERÚ",
+    "COLOMBIANA": "COLOMBIA",
+    "ECUATORIANA": "ECUADOR",
+    "NIGERIANA": "NIGERIA",
+    "MALIANA": "MALÍ",
+    "GAMBIANA": "GAMBIA",
+  };
+  return map[nac] || nac;
+}
+
+const MESOS_CA = [
+  "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+  "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Dispatcher
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function getTemplateInfo(viaLegal: string): TemplateInfo {
   if (viaLegal.includes("DA 20ª")) {
     return {

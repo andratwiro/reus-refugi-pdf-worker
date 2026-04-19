@@ -7,15 +7,18 @@
  *     → Worker valida el shared secret
  *     → Fetch del record d'Airtable
  *     → Decideix EX-31 o EX-32 segons "Via legal" (via getTemplateInfo)
+ *     → Detecta membres familiars simultanis (Cas referent / Casos vinculats)
+ *     → Carrega el template PDF principal + (si cal) els records dels membres
+ *     → Omple el formulari principal (secció 5 buida)
+ *     → Per cada membre simultani, omple una pàgina insert de secció 5
+ *     → Fusiona inserts dins del PDF principal just després de pàgina 2
  *     → Neteja el camp d'attachment (replace semantics)
- *     → Carrega el template PDF des dels static assets
- *     → Omple els camps (decision tree a fillPdf.ts)
- *     → Puja el PDF a Airtable via uploadAttachment
- *     → Retorna 200 amb {ok, filename, formCode}
+ *     → Puja el PDF final a Airtable
+ *     → Retorna 200 amb {ok, filename, formCode, inserts}
  */
 
-import { AirtableClient } from "./airtable";
-import { getTemplateInfo } from "./fillPdf";
+import { AirtableClient, AirtableRecord } from "./airtable";
+import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { CASOS } from "./mappings";
 
 export interface Env {
@@ -86,26 +89,57 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
 
     // 4. Decide which form to generate based on "Via legal"
     const viaLegal = getStrFromField(record.fields, CASOS.viaLegal);
-    const { templateFile, formCode, fill } = getTemplateInfo(viaLegal);
+    const { templateFile, section5TemplateFile, formCode, fill } =
+      getTemplateInfo(viaLegal);
 
     // Build filename from case code + form code (e.g., RR-2026-002-GONZALEZ_EX31.pdf)
     const codi = getStrFromField(record.fields, CASOS.codi) || record.id;
     const filename = `${codi}_${formCode}.pdf`;
 
-    // 5. Load PDF template from bundled static assets
+    // 5. Resolve simultaneous family members (if any)
+    const simultaneousIds = getSimultaneousApplicantIds(record);
+    const simultaneousMembers =
+      simultaneousIds.length > 0
+        ? await airtable.getRecords(tableId, simultaneousIds)
+        : [];
+
+    // 6. Load main PDF template from bundled static assets
     const templateResp = await env.ASSETS.fetch(`https://placeholder/${templateFile}`);
     if (!templateResp.ok) {
       throw new Error(`Failed to load template ${templateFile}: ${templateResp.status}`);
     }
     const templateBytes = await templateResp.arrayBuffer();
 
-    // 6. Fill the PDF using the selected fill function
-    const filledBytes = await fill(templateBytes, record);
+    // 7. Fill the main PDF (section 5 stays blank — populated via inserts)
+    let filledBytes = await fill(templateBytes, record);
 
-    // 7. Clear existing attachments (replace semantics)
+    // 8. If family case, fill and merge section 5 inserts
+    if (simultaneousMembers.length > 0) {
+      const insertResp = await env.ASSETS.fetch(
+        `https://placeholder/${section5TemplateFile}`,
+      );
+      if (!insertResp.ok) {
+        throw new Error(
+          `Failed to load section 5 template ${section5TemplateFile}: ${insertResp.status}`,
+        );
+      }
+      const insertTemplateBytes = await insertResp.arrayBuffer();
+
+      const insertBytesList = await Promise.all(
+        simultaneousMembers.map((m) =>
+          fillSection5Page(insertTemplateBytes, m, formCode),
+        ),
+      );
+
+      // Section 5 lives on page 2 (index 1) in both EX-31 and EX-32,
+      // so inserts go immediately after index 1.
+      filledBytes = await mergePdfWithInserts(filledBytes, insertBytesList, 1);
+    }
+
+    // 9. Clear existing attachments (replace semantics)
     await airtable.clearAttachmentField(tableId, body.recordId, fieldId);
 
-    // 8. Upload the generated PDF
+    // 10. Upload the generated PDF
     await airtable.uploadAttachment({
       recordId: body.recordId,
       fieldIdOrName: fieldId,
@@ -120,6 +154,7 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
       filename,
       formCode,
       viaLegal,
+      inserts: simultaneousMembers.length,
       sizeBytes: filledBytes.length,
     });
   } catch (err) {
@@ -148,4 +183,31 @@ function getStrFromField(fields: Record<string, unknown>, fieldId: string): stri
     return String((v as { name: string }).name);
   }
   return String(v);
+}
+
+/**
+ * Decideix la llista de sol·licitants simultanis (record IDs) que s'han
+ * d'inserir com a secció 5 del dossier d'aquest cas.
+ *
+ * - Si el cas és PRINCIPAL (té `Casos vinculats`): retorna els dependents.
+ * - Si el cas és DEPENDENT (té `Cas referent`): retorna el principal (1 ID).
+ * - Si el cas és INDIVIDUAL: retorna llista buida.
+ *
+ * Els dos camps són `multipleRecordLinks` a Airtable, que arriben com a
+ * array d'strings (IDs) quan es fa el get amb `returnFieldsByFieldId=true`.
+ */
+function getSimultaneousApplicantIds(record: AirtableRecord): string[] {
+  const f = record.fields;
+
+  const vinculats = f[CASOS.casosVinculats];
+  if (Array.isArray(vinculats) && vinculats.length > 0) {
+    return vinculats.filter((x): x is string => typeof x === "string");
+  }
+
+  const referent = f[CASOS.casReferent];
+  if (Array.isArray(referent) && referent.length > 0) {
+    return referent.filter((x): x is string => typeof x === "string");
+  }
+
+  return [];
 }

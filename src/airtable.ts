@@ -36,6 +36,21 @@ export class AirtableClient {
   }
 
   /**
+   * Batch fetch multiple records by IDs. Used to resolve linked-record fields
+   * (e.g. `Casos vinculats` pointing to dependent cases).
+   *
+   * Executed as parallel single-record fetches — simpler than the filterByFormula
+   * approach and fast enough for family sizes (typically 2–5 members).
+   */
+  async getRecords(
+    tableId: string,
+    recordIds: string[],
+  ): Promise<AirtableRecord[]> {
+    if (recordIds.length === 0) return [];
+    return Promise.all(recordIds.map((id) => this.getRecord(tableId, id)));
+  }
+
+  /**
    * Upload a binary attachment directly to a record's attachment field.
    * Uses the content.airtable.com upload endpoint that accepts base64.
    * No external hosting needed.

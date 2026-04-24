@@ -14,7 +14,7 @@ import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
 import { CASOS } from "./mappings";
 
 export interface Env {
-  // Secrets (via `wrangler secret put` o dashboard)
+  // Secrets
   AIRTABLE_TOKEN: string;
   SHARED_SECRET: string;
   GAS_WEBAPP_URL: string;
@@ -73,13 +73,11 @@ export default {
   },
 };
 
-// ─── /generate (existing — dossier EX-31/EX-32) ─────────────────────────────
+// ─── /generate (existing) ───────────────────────────────────────────────────
 
 async function handleGenerate(request: Request, env: Env): Promise<Response> {
-  // 1. Auth
   if (!checkAuth(request, env)) return unauthorized();
 
-  // 2. Parse body
   let body: GenerateRequest;
   try {
     body = (await request.json()) as GenerateRequest;
@@ -96,10 +94,8 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
   const airtable = new AirtableClient(env.AIRTABLE_TOKEN, baseId);
 
   try {
-    // 3. Fetch the case
     const record = await airtable.getRecord(tableId, body.recordId);
 
-    // 4. Decide template based on "Via legal"
     const viaLegal = getStrFromField(record.fields, CASOS.viaLegal);
     const { templateFile, section5TemplateFile, formCode, fill } =
       getTemplateInfo(viaLegal);
@@ -107,34 +103,28 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
     const codi = getStrFromField(record.fields, CASOS.codi) || record.id;
     const filename = `${codi}_${formCode}.pdf`;
 
-    // 5. Resolve simultaneous family members (principal's dependents OR dependent's principal)
     const simultaneousIds = getSimultaneousApplicantIds(record);
     const simultaneousMembers =
       simultaneousIds.length > 0
         ? await airtable.getRecords(tableId, simultaneousIds)
         : [];
 
-    // Rule (a) — Airtable order: first member goes on main page 2; rest on inserts.
     const firstDependent = simultaneousMembers[0];
     const extraDependents = simultaneousMembers.slice(1);
 
-    // 6. Fetch signature PNG if the case has one
     const signatureBytes = await fetchSignaturePng(record);
 
-    // 7. Load main template
     const templateResp = await env.ASSETS.fetch(`https://placeholder/${templateFile}`);
     if (!templateResp.ok) {
       throw new Error(`Failed to load template ${templateFile}: ${templateResp.status}`);
     }
     const templateBytes = await templateResp.arrayBuffer();
 
-    // 8. Fill main — with first dependent (if any) and signature (if any)
     let filledBytes = await fill(templateBytes, record, {
       firstDependent,
       signatureBytes,
     });
 
-    // 9. Generate + merge inserts for remaining dependents (2..N)
     if (extraDependents.length > 0) {
       const insertResp = await env.ASSETS.fetch(
         `https://placeholder/${section5TemplateFile}`,
@@ -154,7 +144,6 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
       filledBytes = await mergePdfWithInserts(filledBytes, insertBytesList, 1);
     }
 
-    // 10. Clear prev attachment + upload new
     await airtable.clearAttachmentField(tableId, body.recordId, fieldId);
     await airtable.uploadAttachment({
       recordId: body.recordId,
@@ -182,7 +171,7 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
   }
 }
 
-// ─── /anexo2 (new — certificat de vulnerabilitat express) ───────────────────
+// ─── /anexo2 ────────────────────────────────────────────────────────────────
 
 async function handleAnexo2(request: Request, env: Env): Promise<Response> {
   if (!checkAuth(request, env)) return unauthorized();
@@ -203,10 +192,9 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
   const airtable = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
 
   try {
-    // 1. Fetch record BY NAME (field IDs not wired yet for this table)
-    const record = await airtable.getRecord(tableId, body.recordId, { byFieldId: false });
+    // Read the record BY FIELD ID (default) — noms de camp poden canviar.
+    const record = await airtable.getRecord(tableId, body.recordId);
 
-    // 2. Load plantilla
     const templateResp = await env.ASSETS.fetch(
       "https://placeholder/A2_certificado_vulnerabilidad.pdf",
     );
@@ -215,11 +203,9 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
     }
     const templateBytes = await templateResp.arrayBuffer();
 
-    // 3. Fill
     const pdfBytes = await fillAnexo2Pdf(templateBytes, record);
     const filename = anexo2Filename(record);
 
-    // 4. Clear + upload (replace semantics)
     await airtable.clearAttachmentField(tableId, body.recordId, pdfField);
     await airtable.uploadAttachment({
       recordId: body.recordId,
@@ -229,7 +215,6 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
       bytes: pdfBytes,
     });
 
-    // 5. Stamp "Generat el" with now() in ISO (Airtable will render in Europe/Madrid via col config)
     await airtable.updateField(
       tableId,
       body.recordId,
@@ -250,7 +235,7 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
   }
 }
 
-// ─── /gmail-draft (new — proxy a Google Apps Script) ────────────────────────
+// ─── /gmail-draft ───────────────────────────────────────────────────────────
 
 async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
   if (!checkAuth(request, env)) return unauthorized();
@@ -270,8 +255,6 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
   }
 
   try {
-    // Cloudflare Workers fetch() follows 302 redirects by default,
-    // which is exactly why we need this proxy (Airtable Scripting can't follow).
     const gasResp = await fetch(env.GAS_WEBAPP_URL, {
       method: "POST",
       redirect: "follow",
@@ -291,7 +274,6 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
     try {
       parsed = JSON.parse(text);
     } catch {
-      // GAS returned HTML (typical error page) — surface it
       return json(
         {
           ok: false,
@@ -341,14 +323,6 @@ function getStrFromField(fields: Record<string, unknown>, fieldId: string): stri
   return String(v);
 }
 
-/**
- * Returns the list of simultaneously-processing family member record IDs
- * that should be referenced in section 5 of this case's dossier.
- *
- *   - Principal (has `Casos vinculats`): returns the dependent IDs.
- *   - Dependent (has `Cas referent`): returns the principal ID (1 element).
- *   - Individual: returns [].
- */
 function getSimultaneousApplicantIds(record: AirtableRecord): string[] {
   const f = record.fields;
   const vinculats = f[CASOS.casosVinculats];
@@ -362,14 +336,6 @@ function getSimultaneousApplicantIds(record: AirtableRecord): string[] {
   return [];
 }
 
-/**
- * If the record has a Firma digital attachment, download its PNG bytes.
- * Returns undefined when the field is empty or the fetch fails — in which
- * case the firma boxes on the generated PDF are left blank.
- *
- * Airtable attachment URLs are time-limited signed URLs generated at the
- * moment of the `getRecord` call, so we download immediately.
- */
 async function fetchSignaturePng(
   record: AirtableRecord,
 ): Promise<Uint8Array | undefined> {

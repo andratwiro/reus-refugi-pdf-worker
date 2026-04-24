@@ -1,36 +1,52 @@
 /**
- * Cloudflare Worker: genera el dossier (EX-31 o EX-32) d'un cas i l'adjunta
- * a la fila d'Airtable.
+ * Cloudflare Worker: PDF generation + Gmail draft proxy per al projecte
+ * Reus Refugi.
  *
- * Flux:
- *   Airtable button → Scripting extension → POST /generate
- *     → Worker valida el shared secret
- *     → Fetch del record d'Airtable
- *     → Descàrrega de la signatura digital (si existeix)
- *     → Decideix EX-31 o EX-32 segons "Via legal"
- *     → Detecta membres familiars simultanis
- *     → Omple el formulari principal (+ primer dependent a pàgina 2 secció 5)
- *       (+ signatura a pàgines 2/4/5 si s'ha capturat)
- *     → Per membres familiars 2..N, genera inserts i fusiona després de pàgina 2
- *     → Puja el PDF final a Airtable
+ * Rutes:
+ *   POST /generate     — dossier EX-31 o EX-32 d'un cas (taula Casos)
+ *   POST /anexo2       — certificat de vulnerabilitat (Informes Vulnerabilitat Express)
+ *   POST /gmail-draft  — proxy a Google Apps Script per crear drafts (evita el 302 de GAS)
  */
 
 import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
+import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
 import { CASOS } from "./mappings";
 
 export interface Env {
+  // Secrets (via `wrangler secret put` o dashboard)
   AIRTABLE_TOKEN: string;
   SHARED_SECRET: string;
+  GAS_WEBAPP_URL: string;
+  GAS_SHARED_SECRET: string;
+
+  // Public vars (wrangler.toml)
   AIRTABLE_BASE_ID: string;
   CASOS_TABLE_ID: string;
   DOSSIER_FIELD_ID: string;
+  INFORMES_VULN_TABLE_ID: string;
+  INFORMES_VULN_PDF_FIELD: string;
+  INFORMES_VULN_GENERATED_AT_FIELD: string;
+
+  // Assets binding
   ASSETS: Fetcher;
 }
 
 interface GenerateRequest {
   recordId: string;
   baseId?: string;
+}
+
+interface Anexo2Request {
+  recordId: string;
+}
+
+interface GmailDraftRequest {
+  to?: string;
+  subject?: string;
+  bodyText?: string;
+  attachmentUrl?: string;
+  filename?: string;
 }
 
 export default {
@@ -45,17 +61,23 @@ export default {
       return handleGenerate(request, env);
     }
 
+    if (request.method === "POST" && url.pathname === "/anexo2") {
+      return handleAnexo2(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/gmail-draft") {
+      return handleGmailDraft(request, env);
+    }
+
     return json({ error: "Not found" }, 404);
   },
 };
 
+// ─── /generate (existing — dossier EX-31/EX-32) ─────────────────────────────
+
 async function handleGenerate(request: Request, env: Env): Promise<Response> {
   // 1. Auth
-  const auth = request.headers.get("Authorization") || "";
-  const expected = `Bearer ${env.SHARED_SECRET}`;
-  if (auth !== expected) {
-    return json({ error: "Unauthorized" }, 401);
-  }
+  if (!checkAuth(request, env)) return unauthorized();
 
   // 2. Parse body
   let body: GenerateRequest;
@@ -158,6 +180,148 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
     const message = err instanceof Error ? err.message : String(err);
     return json({ ok: false, error: message }, 500);
   }
+}
+
+// ─── /anexo2 (new — certificat de vulnerabilitat express) ───────────────────
+
+async function handleAnexo2(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized();
+
+  let body: Anexo2Request;
+  try {
+    body = (await request.json()) as Anexo2Request;
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!body.recordId || !body.recordId.startsWith("rec")) {
+    return json({ error: "Missing or invalid recordId" }, 400);
+  }
+
+  const tableId = env.INFORMES_VULN_TABLE_ID;
+  const pdfField = env.INFORMES_VULN_PDF_FIELD;
+  const generatedAtField = env.INFORMES_VULN_GENERATED_AT_FIELD;
+  const airtable = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
+
+  try {
+    // 1. Fetch record BY NAME (field IDs not wired yet for this table)
+    const record = await airtable.getRecord(tableId, body.recordId, { byFieldId: false });
+
+    // 2. Load plantilla
+    const templateResp = await env.ASSETS.fetch(
+      "https://placeholder/A2_certificado_vulnerabilidad.pdf",
+    );
+    if (!templateResp.ok) {
+      throw new Error(`Failed to load anexo II template: ${templateResp.status}`);
+    }
+    const templateBytes = await templateResp.arrayBuffer();
+
+    // 3. Fill
+    const pdfBytes = await fillAnexo2Pdf(templateBytes, record);
+    const filename = anexo2Filename(record);
+
+    // 4. Clear + upload (replace semantics)
+    await airtable.clearAttachmentField(tableId, body.recordId, pdfField);
+    await airtable.uploadAttachment({
+      recordId: body.recordId,
+      fieldIdOrName: pdfField,
+      filename,
+      contentType: "application/pdf",
+      bytes: pdfBytes,
+    });
+
+    // 5. Stamp "Generat el" with now() in ISO (Airtable will render in Europe/Madrid via col config)
+    await airtable.updateField(
+      tableId,
+      body.recordId,
+      generatedAtField,
+      new Date().toISOString(),
+    );
+
+    return json({
+      ok: true,
+      recordId: body.recordId,
+      filename,
+      sizeBytes: pdfBytes.length,
+    });
+  } catch (err) {
+    console.error("anexo2 error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return json({ ok: false, error: message }, 500);
+  }
+}
+
+// ─── /gmail-draft (new — proxy a Google Apps Script) ────────────────────────
+
+async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized();
+
+  let body: GmailDraftRequest;
+  try {
+    body = (await request.json()) as GmailDraftRequest;
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!body.to || !body.attachmentUrl) {
+    return json({ error: "Missing 'to' or 'attachmentUrl'" }, 400);
+  }
+
+  if (!env.GAS_WEBAPP_URL || !env.GAS_SHARED_SECRET) {
+    return json({ error: "GAS not configured (missing GAS_WEBAPP_URL or GAS_SHARED_SECRET)" }, 500);
+  }
+
+  try {
+    // Cloudflare Workers fetch() follows 302 redirects by default,
+    // which is exactly why we need this proxy (Airtable Scripting can't follow).
+    const gasResp = await fetch(env.GAS_WEBAPP_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: body.to,
+        subject: body.subject ?? "",
+        bodyText: body.bodyText ?? "",
+        attachmentUrl: body.attachmentUrl,
+        filename: body.filename ?? "document.pdf",
+        secret: env.GAS_SHARED_SECRET,
+      }),
+    });
+
+    const text = await gasResp.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // GAS returned HTML (typical error page) — surface it
+      return json(
+        {
+          ok: false,
+          error: `GAS did not return JSON (status ${gasResp.status})`,
+          rawResponse: text.slice(0, 500),
+        },
+        502,
+      );
+    }
+
+    return new Response(JSON.stringify(parsed, null, 2), {
+      status: gasResp.ok ? 200 : gasResp.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("gmail-draft error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return json({ ok: false, error: `GAS fetch failed: ${message}` }, 502);
+  }
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function checkAuth(request: Request, env: Env): boolean {
+  const auth = request.headers.get("Authorization") || "";
+  return auth === `Bearer ${env.SHARED_SECRET}`;
+}
+
+function unauthorized(): Response {
+  return json({ error: "Unauthorized" }, 401);
 }
 
 function json(data: unknown, status = 200): Response {

@@ -205,3 +205,72 @@ export const FIRMA_BOXES_EX32: FirmaBox[] = [
   { pageIndex: 3, x: 291.3, y: 68.5,  width: 245.6, height: 45.3 },   // Page 4: Declarante (Anexo I-1)
   { pageIndex: 4, x: 273.3, y: 174.5, width: 247.6, height: 98.0 },   // Page 5: Declarante (Anexo I-2)
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ANEXO II — Flux express vulnerabilitat
+//  Taula: Informes Vulnerabilitat Express (tblO0n6QksMeXLX3m) a base Venus.
+//  Plantilla: assets/A2_certificado_vulnerabilidad.pdf (ja amb dades entitat).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Noms dels camps d'Airtable a la taula Informes Vulnerabilitat Express.
+ * Usem NOMS (no IDs) perquè els IDs encara no estan cablejats al codi.
+ * Si algun dia cal migrar a IDs, reemplaça els valors per field IDs i afegeix
+ * `{ byFieldId: true }` al `getRecord` del handler.
+ */
+export const ANEXO2_AIRTABLE_FIELDS = {
+  nom: "Nom i cognoms",
+  tipusDoc: "Tipus document",
+  numDoc: "Número document",
+  dataNaixement: "Data de naixement",
+  nacionalitat: "Nacionalitat",
+  domicili: "Domicili",
+  telefon: "Telèfon",
+  localitat: "Localitat",
+  cp: "CP",
+  provincia: "Província",
+  email: "Email",
+  factors: "Factors vulnerabilitat",
+  altresFactors: "Altres factors",
+} as const;
+
+/**
+ * Noms dels widgets del PDF Anexo II (A2_certificado_vulnerabilidad.pdf).
+ * NO toquem Texto145-149 (entitat, ja omplerta), Casilla 52/53 (Tercer Sector,
+ * ja marcada), ni Texto162-164 (DIR3, pre-impressos al peu).
+ */
+export const ANEXO2_PDF_FIELDS = {
+  nom: "Texto150",
+  numDoc: "Texto151",
+  dataNaixement: "Texto152",
+  nacionalitat: "Texto153",
+  domicili: "Texto154",
+  telefon: "Texto155",
+  localitat: "Texto156",
+  cp: "Texto157",
+  provincia: "Texto158",
+  altresFactors: "Texto159",
+  dataAvui: "Texto161",
+} as const;
+
+/**
+ * Mapa 1:1 entre opcions del multipleSelect `Factors vulnerabilitat` (literal
+ * d'Airtable) i el nom del widget PDF de la casilla corresponent.
+ * Els 11 factors estàndard. Si Rob canvia les etiquetes, aquí cal actualitzar-les.
+ */
+export const VULNERABILITAT_CASILLA: Record<string, string> = {
+  "Aïllament social o manca de xarxa de suport": "Casilla de verificación54",
+  "Sensellarisme o habitatge precari": "Casilla de verificación55",
+  "Víctima de discriminació o exclusió social": "Casilla de verificación56",
+  "Manca d'ingressos suficients": "Casilla de verificación57",
+  "Pobresa o risc d'exclusió econòmica": "Casilla de verificación58",
+  "Dificultat d'accés a l'ocupació": "Casilla de verificación59",
+  "Persones a càrrec (menors, dependents)": "Casilla de verificación60",
+  "Unitat familiar en situació de vulnerabilitat": "Casilla de verificación61",
+  "Monoparentalitat en context de precarietat": "Casilla de verificación62",
+  "Riscos psicosocials": "Casilla de verificación63",
+  "Exposició a situacions d'explotació o abús": "Casilla de verificación64",
+};
+
+/** Casilla "Otros (especificar)" — es marca si el text `Altres factors` té contingut. */
+export const ANEXO2_OTROS_CASILLA = "Casilla de verificación65";

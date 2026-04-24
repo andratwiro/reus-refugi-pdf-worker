@@ -1,6 +1,8 @@
 /**
  * Airtable Web API client scoped to the Casos table.
- * Uses field IDs (not names) for stability.
+ * Uses field IDs (not names) for stability by default, but can be switched
+ * to field names via `opts.byFieldId: false` (used for the Informes
+ * Vulnerabilitat Express table, whose field IDs aren't yet in code).
  */
 
 const API_BASE = "https://api.airtable.com/v0";
@@ -9,7 +11,7 @@ const CONTENT_BASE = "https://content.airtable.com/v0";
 export interface AirtableRecord {
   id: string;
   createdTime: string;
-  /** Keys are field IDs (starting with fld...), values are field values. */
+  /** Keys are field IDs (starting with fld...) or names, depending on how the record was fetched. */
   fields: Record<string, unknown>;
 }
 
@@ -20,11 +22,19 @@ export class AirtableClient {
   ) {}
 
   /**
-   * GET a record by ID. Returns field values keyed by field ID.
-   * Using returnFieldsByFieldId=true so our code is stable against renames.
+   * GET a record by ID. Returns field values keyed by field ID by default
+   * (so our code is stable against renames). Pass `{ byFieldId: false }`
+   * to get fields keyed by name instead (used for tables where we don't
+   * have field IDs hard-coded yet).
    */
-  async getRecord(tableId: string, recordId: string): Promise<AirtableRecord> {
-    const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}?returnFieldsByFieldId=true`;
+  async getRecord(
+    tableId: string,
+    recordId: string,
+    opts: { byFieldId?: boolean } = {},
+  ): Promise<AirtableRecord> {
+    const byFieldId = opts.byFieldId !== false;
+    const params = byFieldId ? "?returnFieldsByFieldId=true" : "";
+    const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}${params}`;
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${this.token}` },
     });
@@ -112,6 +122,33 @@ export class AirtableClient {
     if (!resp.ok) {
       const body = await resp.text();
       throw new Error(`Airtable clearAttachment failed: ${resp.status} ${body}`);
+    }
+  }
+
+  /**
+   * PATCH a single field on a record.
+   * Used for timestamps (e.g. "Generat el" on the Anexo II flow).
+   */
+  async updateField(
+    tableId: string,
+    recordId: string,
+    fieldIdOrName: string,
+    value: unknown,
+  ): Promise<void> {
+    const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}`;
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: { [fieldIdOrName]: value },
+      }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Airtable updateField failed: ${resp.status} ${body}`);
     }
   }
 }

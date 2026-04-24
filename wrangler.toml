@@ -3,8 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Static assets — the EX-32 template lives inside the Worker bundle.
-# No R2, no external hosting. Accessible at runtime via env.ASSETS.fetch().
+# Static assets — les plantilles PDF viuen dins del bundle del Worker.
+# Accessibles en runtime via env.ASSETS.fetch().
+#   - EX31_oficial.pdf, EX31_seccion5.pdf
+#   - EX32_oficial.pdf, EX32_seccion5.pdf
+#   - A2_certificado_vulnerabilidad.pdf      ← nou (Anexo II express)
 [assets]
 directory = "./assets"
 binding = "ASSETS"
@@ -13,12 +16,23 @@ binding = "ASSETS"
 [observability]
 enabled = true
 
-# Secrets are set via `wrangler secret put`, NOT in this file:
+# Secrets — NO van aquí. Configurar via:
 #   npx wrangler secret put AIRTABLE_TOKEN
 #   npx wrangler secret put SHARED_SECRET
+#   npx wrangler secret put GAS_WEBAPP_URL      ← nou
+#   npx wrangler secret put GAS_SHARED_SECRET   ← nou
 #
-# Public (non-secret) config vars can go here:
+# (O via dashboard: Workers → reus-refugi-pdf-worker → Settings → Variables and Secrets)
+
 [vars]
+# Base Venus (mateixa base per Casos i Informes Vulnerabilitat Express)
 AIRTABLE_BASE_ID = "appWuXncpGWaFTR4M"
+
+# Taula Casos (/generate)
 CASOS_TABLE_ID = "tblaz9eNKzTI7YbM2"
 DOSSIER_FIELD_ID = "fldVBsux4CdQkELmg"
+
+# Taula Informes Vulnerabilitat Express (/anexo2)
+INFORMES_VULN_TABLE_ID = "tblO0n6QksMeXLX3m"
+INFORMES_VULN_PDF_FIELD = "fldbSmX0DxlCdSS2O"          # "Informe generat" (multipleAttachments)
+INFORMES_VULN_GENERATED_AT_FIELD = "fld3kRIFhpmVNDBFO" # "Generat el" (dateTime Europe/Madrid)

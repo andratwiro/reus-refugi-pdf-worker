@@ -18,7 +18,7 @@
  * No flatten — Rob vol poder editar manualment si cal.
  */
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
 import {
   ANEXO2_AIRTABLE_FIELDS as A,
   ANEXO2_PDF_FIELDS as P,
@@ -86,6 +86,19 @@ export async function fillAnexo2Pdf(
 
   // ── Fecha (avui, Europe/Madrid) ──────────────────────────────────────────
   setText(P.dataAvui, todayInMadrid());
+
+  // ── Fix Firefox/Airtable preview ─────────────────────────────────────────
+  // La plantilla ve amb NeedAppearances=true. Això diu al visor que regeneri
+  // les aparences al vol. Firefox pdf.js i l'Airtable preview ho respecten
+  // i regeneren, però amb aquesta plantilla (generada amb PyPDF2+reportlab)
+  // la regeneració surt mal posicionada i els camps nous es veuen buits.
+  // Adobe i la majoria d'altres visors ignoren el flag i fan servir els streams
+  // directament — per això el PDF descarregat es veu bé.
+  //
+  // Forçant el flag a false, indiquem a tots els visors que facin servir els
+  // appearance streams que pdf-lib ha generat. Verificat que funciona a
+  // poppler (comportament similar a pdf.js) — els camps apareixen.
+  form.acroForm.dict.set(PDFName.of("NeedAppearances"), PDFBool.False);
 
   return await pdfDoc.save();
 }

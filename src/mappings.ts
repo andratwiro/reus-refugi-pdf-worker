@@ -62,12 +62,6 @@ export const CASOS = {
 /**
  * Real data from the Generalitat de Catalunya's association registry (form J0225,
  * Inscripció de dades registrals — Òrgans de govern, 64431 al Registre d'Associacions).
- *
- * - `recexNum` stays blank for now; fill it in when we have the specific Registro de
- *   Colaboradores de Extranjería inscription number from the ministry (the 64431 is
- *   the Generalitat association registry, NOT the same as RECEX).
- * - Address is split into carrer/num/pis because sections 2 and 3 of the EX-31/EX-32
- *   forms have separate Nº (Texto30/43) and Piso (Texto31/44) fields.
  */
 export const ENTITAT_REUS_REFUGI = {
   nom: "ASSOCIACIÓ REUS REFUGI",
@@ -83,10 +77,8 @@ export const ENTITAT_REUS_REFUGI = {
   telefon: "REDACTED",
   email: "info@reusrefugi.cat",
 
-  // TODO: omplir amb el número d'inscripció oficial al RECEX quan el tinguem.
   recexNum: "",
 
-  // Persona física que representa legalment l'entitat.
   representantNom: "REDACTED",
   representantDni: "REDACTED",
   representantTitol: "PRESIDENTE",
@@ -94,7 +86,7 @@ export const ENTITAT_REUS_REFUGI = {
 
 /**
  * Mapping d'una circumstància de vulnerabilitat (text d'Airtable) al número
- * de Casilla de l'Annex II del PDF oficial.
+ * de Casilla de l'Annex II del PDF oficial. Usat pel flux /generate (Casos).
  */
 export const CIRCUMSTANCIA_CASILLA: Record<string, string> = {
   "Aïllament social o manca de xarxa de suport": "54",
@@ -172,72 +164,62 @@ export const SECTION5_EX32 = {
   parentiuAscendiente: "Casilla de verificación29",
 } as const;
 
-/**
- * Coordinates of the FIRMA (signature) boxes on each form, in PDF-native page
- * coordinates (origin = bottom-left, y increases upward).
- *
- * Empirically verified: plain `page.drawImage(...)` with these coords renders
- * correctly on both EX-31 (which has a page-level CTM on each page) and EX-32
- * (no CTM). No inverse-CTM compensation is needed.
- *
- * Note: Page 8 of EX-32 (Annex II) has a signature box for the ENTITY (Reus
- * Refugi certifying vulnerability), NOT the applicant — intentionally excluded.
- */
 export interface FirmaBox {
-  /** 0-based page index (1 = page 2) */
   pageIndex: number;
-  /** Bottom-left x (PDF-native coords) */
   x: number;
-  /** Bottom-left y (PDF-native coords) */
   y: number;
   width: number;
   height: number;
 }
 
 export const FIRMA_BOXES_EX31: FirmaBox[] = [
-  { pageIndex: 1, x: 274.9, y: 473.62, width: 231.2, height: 32.1 },  // Page 2: Solicitante
-  { pageIndex: 3, x: 303.7, y: 110.52, width: 229.3, height: 36.4 },  // Page 4: Declarante (Anexo I-1)
-  { pageIndex: 4, x: 295.2, y: 203.32, width: 205.0, height: 58.4 },  // Page 5: Declarante (Anexo I-2)
+  { pageIndex: 1, x: 274.9, y: 473.62, width: 231.2, height: 32.1 },
+  { pageIndex: 3, x: 303.7, y: 110.52, width: 229.3, height: 36.4 },
+  { pageIndex: 4, x: 295.2, y: 203.32, width: 205.0, height: 58.4 },
 ];
 
 export const FIRMA_BOXES_EX32: FirmaBox[] = [
-  { pageIndex: 1, x: 267.9, y: 369.4, width: 247.6, height: 48.3 },   // Page 2: Solicitante
-  { pageIndex: 3, x: 291.3, y: 68.5,  width: 245.6, height: 45.3 },   // Page 4: Declarante (Anexo I-1)
-  { pageIndex: 4, x: 273.3, y: 174.5, width: 247.6, height: 98.0 },   // Page 5: Declarante (Anexo I-2)
+  { pageIndex: 1, x: 267.9, y: 369.4, width: 247.6, height: 48.3 },
+  { pageIndex: 3, x: 291.3, y: 68.5,  width: 245.6, height: 45.3 },
+  { pageIndex: 4, x: 273.3, y: 174.5, width: 247.6, height: 98.0 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ANEXO II — Flux express vulnerabilitat
 //  Taula: Informes Vulnerabilitat Express (tblO0n6QksMeXLX3m) a base Venus.
-//  Plantilla: assets/A2_certificado_vulnerabilidad.pdf (ja amb dades entitat).
+//  Plantilla: assets/A2_certificado_vulnerabilidad.pdf.
+//
+//  IMPORTANT: usem FIELD IDs (no noms) per estabilitat.
+//  Si Rob crea nous camps, afegir-los aquí amb el seu ID.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Noms dels camps d'Airtable a la taula Informes Vulnerabilitat Express.
- * Usem NOMS (no IDs) perquè els IDs encara no estan cablejats al codi.
- * Si algun dia cal migrar a IDs, reemplaça els valors per field IDs i afegeix
- * `{ byFieldId: true }` al `getRecord` del handler.
+ * Field IDs de la taula Informes Vulnerabilitat Express.
+ * Recollits via Airtable MCP (2026-04-25).
  */
 export const ANEXO2_AIRTABLE_FIELDS = {
-  nom: "Nom i cognoms",
-  tipusDoc: "Tipus document",
-  numDoc: "Número document",
-  dataNaixement: "Data de naixement",
-  nacionalitat: "Nacionalitat",
-  domicili: "Domicili",
-  telefon: "Telèfon",
-  localitat: "Localitat",
-  cp: "CP",
-  provincia: "Província",
-  email: "Email",
-  factors: "Factors vulnerabilitat",
-  altresFactors: "Altres factors",
+  nom: "fldkwRL1btyKBJIGM",            // "Nom i cognoms" (singleLineText)
+  tipusDoc: "fldoyGzPjQ5jwIMck",       // "Tipus document" (singleSelect)
+  numDoc: "flduSnTZLHPP0NMTb",         // "Número document" (singleLineText)
+  dataNaixement: "fldJ5bd3Xniot5RFt",  // "Data de naixement" (date)
+  nacionalitat: "fldhIVVLGHCYVZfdn",   // "Nacionalitat" (singleLineText)
+  domicili: "fldDRwjyqRITqmAUZ",       // "Domicili a Espanya" (singleLineText)
+  telefon: "fldX8zuPpEZromBfh",        // "Telèfon" (singleLineText)
+  localitat: "fldntiT4dQi7Usn2Q",      // "Localitat" (singleLineText)
+  cp: "fldbxRqfIXg8la2az",             // "CP" (singleLineText)
+  provincia: "fld7VvSakBt59Xrkj",      // "Província" (singleLineText)
+  email: "fld36a7AAARLJUKlE",          // "Email" (email)
+  factors: "fldmv1XoELN9E1KR7",        // "Factors vulnerabilitat" (multipleSelects)
+
+  // TODO: "Altres factors" field ID — encara no capturat. Mentre no hi sigui,
+  // el Otros (especificar) i la Casilla 65 del PDF quedaran buits.
+  // Rob: obre Airtable → field Altres factors → Edit field → copia l'ID "fld..."
+  altresFactors: "",
 } as const;
 
 /**
- * Noms dels widgets del PDF Anexo II (A2_certificado_vulnerabilidad.pdf).
- * NO toquem Texto145-149 (entitat, ja omplerta), Casilla 52/53 (Tercer Sector,
- * ja marcada), ni Texto162-164 (DIR3, pre-impressos al peu).
+ * Noms dels widgets del PDF Anexo II. NO toquem Texto145-149 (entitat, ja
+ * omplert), Casilla 52/53 (Tercer Sector, ja marcat), ni Texto162-164 (DIR3).
  */
 export const ANEXO2_PDF_FIELDS = {
   nom: "Texto150",
@@ -254,11 +236,26 @@ export const ANEXO2_PDF_FIELDS = {
 } as const;
 
 /**
- * Mapa 1:1 entre opcions del multipleSelect `Factors vulnerabilitat` (literal
- * d'Airtable) i el nom del widget PDF de la casilla corresponent.
- * Els 11 factors estàndard. Si Rob canvia les etiquetes, aquí cal actualitzar-les.
+ * Mapa entre OPCIÓ (id o nom) del multipleSelect i el widget PDF.
+ * Les claus són option IDs (sel...) — robust davant canvis d'etiqueta.
+ * Les claus string literals també funcionen com a fallback per si Airtable
+ * retorna només el name i no l'ID.
  */
 export const VULNERABILITAT_CASILLA: Record<string, string> = {
+  // Per option ID (preferit, estable)
+  "selQPZ0N6xMPRXuWo": "Casilla de verificación54", // Aïllament social
+  "selsSMM7GRLThoHmd": "Casilla de verificación55", // Sensellarisme
+  "selcVnJ4wTgGkjjPr": "Casilla de verificación56", // Víctima discriminació
+  "selWderpMATkL57L9": "Casilla de verificación57", // Manca ingressos
+  "selBQjJpb0m3iK8eH": "Casilla de verificación58", // Pobresa
+  "selLHNuj87FGMBesr": "Casilla de verificación59", // Dificultat ocupació
+  "selkPqy30qXFzbHxL": "Casilla de verificación60", // Persones a càrrec
+  "selkHCSgPEY7fq5gk": "Casilla de verificación61", // Unitat familiar
+  "selkFaLTMEHoEyeYR": "Casilla de verificación62", // Monoparentalitat
+  "selpfLHy7mG04qH1p": "Casilla de verificación63", // Riscos psicosocials
+  "selFf62XJhsvKkehb": "Casilla de verificación64", // Exposició explotació
+
+  // Per nom (fallback)
   "Aïllament social o manca de xarxa de suport": "Casilla de verificación54",
   "Sensellarisme o habitatge precari": "Casilla de verificación55",
   "Víctima de discriminació o exclusió social": "Casilla de verificación56",
@@ -272,5 +269,5 @@ export const VULNERABILITAT_CASILLA: Record<string, string> = {
   "Exposició a situacions d'explotació o abús": "Casilla de verificación64",
 };
 
-/** Casilla "Otros (especificar)" — es marca si el text `Altres factors` té contingut. */
+/** Casilla "Otros (especificar)" — es marca si hi ha text a Altres factors. */
 export const ANEXO2_OTROS_CASILLA = "Casilla de verificación65";

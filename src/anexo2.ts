@@ -11,9 +11,9 @@
  *   - Casilla 65: es marca automàticament si "Altres factors" té contingut.
  *   - Texto162-164 (DIR3): deixar buits — ja estan impresos al peu.
  *
- * Convenció: llegim els camps del record d'Airtable PER NOM (no per field ID),
- * perquè la taula Informes Vulnerabilitat Express (tblO0n6QksMeXLX3m) de
- * moment no té els IDs de camp cablejats aquí.
+ * Lectura d'Airtable: per FIELD ID (returnFieldsByFieldId=true). Les opcions
+ * del multipleSelect es matchen tant per option ID com per name (vegeu
+ * VULNERABILITAT_CASILLA al mappings.ts).
  *
  * No flatten — Rob vol poder editar manualment si cal.
  */
@@ -37,7 +37,7 @@ export async function fillAnexo2Pdf(
   const f = record.fields;
 
   const setText = (name: string, value: string): void => {
-    if (!value) return; // do NOT clobber plantilla defaults when Airtable is empty
+    if (!value) return; // no clobberem defaults de la plantilla amb cadenes buides
     try { form.getTextField(name).setText(value); } catch { /* skip missing */ }
   };
   const check = (name: string): void => {
@@ -59,15 +59,26 @@ export async function fillAnexo2Pdf(
   const factors = f[A.factors];
   if (Array.isArray(factors)) {
     for (const raw of factors) {
-      const name = optName(raw);
-      if (!name) continue;
-      const casilla = VULNERABILITAT_CASILLA[name];
+      // Airtable pot retornar strings (names) o {id, name, color}. Provem tots dos.
+      const key =
+        typeof raw === "string"
+          ? raw
+          : (typeof raw === "object" && raw !== null
+              ? (("id" in raw && typeof (raw as { id: unknown }).id === "string"
+                  ? (raw as { id: string }).id
+                  : ("name" in raw && typeof (raw as { name: unknown }).name === "string"
+                      ? (raw as { name: string }).name
+                      : "")))
+              : "");
+      if (!key) continue;
+      const casilla = VULNERABILITAT_CASILLA[key];
       if (casilla) check(casilla);
     }
   }
 
-  // Text lliure "Otros (especificar)" → Texto159 + marca Casilla 65
-  const altresFactors = strOf(f[A.altresFactors]).trim();
+  // Text lliure "Otros (especificar)" → Texto159 + Casilla 65.
+  // Si A.altresFactors és buit (field ID encara no capturat), saltem aquesta part.
+  const altresFactors = A.altresFactors ? strOf(f[A.altresFactors]).trim() : "";
   if (altresFactors) {
     setText(P.altresFactors, altresFactors);
     check(ANEXO2_OTROS_CASILLA);
@@ -76,13 +87,11 @@ export async function fillAnexo2Pdf(
   // ── Fecha (avui, Europe/Madrid) ──────────────────────────────────────────
   setText(P.dataAvui, todayInMadrid());
 
-  // No flatten
   return await pdfDoc.save();
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Read a string-ish Airtable value. Handles string | number | {name}. */
 function strOf(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -93,19 +102,7 @@ function strOf(v: unknown): string {
   return "";
 }
 
-/** Name of a single-select / multiple-select option (string or {name}). */
-function optName(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (typeof v === "object" && v !== null && "name" in (v as object)) {
-    return String((v as { name: unknown }).name || "");
-  }
-  return "";
-}
-
-/**
- * "2026-04-25" or "2026-04-25T00:00:00.000Z" → "25/04/2026".
- * Returns "" for anything unparseable.
- */
+/** "2026-04-25" o "2026-04-25T00:00:00.000Z" → "25/04/2026". */
 function formatIsoDate(v: unknown): string {
   const s = typeof v === "string" ? v : "";
   const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -121,7 +118,6 @@ function todayInMadrid(): string {
     month: "2-digit",
     year: "numeric",
   });
-  // es-ES yields "25/04/2026" with "/" as separator across runtimes (V8 and Workerd).
   return formatter.format(new Date());
 }
 
@@ -130,7 +126,7 @@ export function anexo2Filename(record: AirtableRecordLike): string {
   const nom = strOf(record.fields[A.nom]);
   const safe = nom
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // strip accents
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\w\s-]/g, "")
     .trim()
     .replace(/\s+/g, "_");

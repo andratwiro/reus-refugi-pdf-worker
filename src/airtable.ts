@@ -2,7 +2,7 @@
  * Airtable Web API client scoped to the Casos table.
  * Uses field IDs (not names) for stability by default, but can be switched
  * to field names via `opts.byFieldId: false` (used for the Informes
- * Vulnerabilitat Express table, whose field IDs aren't yet in code).
+ * de Vulnerabilitat table, whose field IDs aren't yet in code).
  */
 
 const API_BASE = "https://api.airtable.com/v0";

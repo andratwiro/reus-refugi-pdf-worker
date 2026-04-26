@@ -4,7 +4,7 @@
  *
  * Rutes:
  *   POST /generate     — dossier EX-31 o EX-32 d'un cas (taula Casos)
- *   POST /anexo2       — certificat de vulnerabilitat (Informes Vulnerabilitat Express)
+ *   POST /anexo2       — certificat de vulnerabilitat (Informes de Vulnerabilitat)
  *   POST /gmail-draft  — proxy a Google Apps Script per crear drafts (evita el 302 de GAS)
  */
 

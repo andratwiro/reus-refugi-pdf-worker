@@ -1,0 +1,1471 @@
+{
+  "provincia": 43,
+  "municipios": [
+    {
+      "code": "1",
+      "name": "AIGUAMURCIA"
+    },
+    {
+      "code": "2",
+      "name": "ALBINYANA"
+    },
+    {
+      "code": "3",
+      "name": "ALBIOL (L')"
+    },
+    {
+      "code": "4",
+      "name": "ALCANAR"
+    },
+    {
+      "code": "5",
+      "name": "ALCOVER"
+    },
+    {
+      "code": "904",
+      "name": "ALDEA (L')"
+    },
+    {
+      "code": "6",
+      "name": "ALDOVER"
+    },
+    {
+      "code": "7",
+      "name": "ALEIXAR (L')"
+    },
+    {
+      "code": "8",
+      "name": "ALFARA DE CARLES"
+    },
+    {
+      "code": "9",
+      "name": "ALFORJA"
+    },
+    {
+      "code": "10",
+      "name": "ALIO"
+    },
+    {
+      "code": "11",
+      "name": "ALMOSTER"
+    },
+    {
+      "code": "12",
+      "name": "ALTAFULLA"
+    },
+    {
+      "code": "13",
+      "name": "AMETLLA DE MAR (L')"
+    },
+    {
+      "code": "906",
+      "name": "AMPOLLA (L')"
+    },
+    {
+      "code": "14",
+      "name": "AMPOSTA"
+    },
+    {
+      "code": "16",
+      "name": "ARBOÇ (L')"
+    },
+    {
+      "code": "15",
+      "name": "ARBOLI"
+    },
+    {
+      "code": "17",
+      "name": "ARGENTERA (L')"
+    },
+    {
+      "code": "18",
+      "name": "ARNES"
+    },
+    {
+      "code": "19",
+      "name": "ASCO"
+    },
+    {
+      "code": "20",
+      "name": "BANYERES DEL PENEDES"
+    },
+    {
+      "code": "21",
+      "name": "BARBERA DE LA CONCA"
+    },
+    {
+      "code": "22",
+      "name": "BATEA"
+    },
+    {
+      "code": "23",
+      "name": "BELLMUNT DEL PRIORAT"
+    },
+    {
+      "code": "24",
+      "name": "BELLVEI"
+    },
+    {
+      "code": "25",
+      "name": "BENIFALLET"
+    },
+    {
+      "code": "26",
+      "name": "BENISSANET"
+    },
+    {
+      "code": "27",
+      "name": "BISBAL DE FALSET (LA)"
+    },
+    {
+      "code": "28",
+      "name": "BISBAL DEL PENEDES (LA)"
+    },
+    {
+      "code": "29",
+      "name": "BLANCAFORT"
+    },
+    {
+      "code": "30",
+      "name": "BONASTRE"
+    },
+    {
+      "code": "31",
+      "name": "BORGES DEL CAMP (LES)"
+    },
+    {
+      "code": "32",
+      "name": "BOT"
+    },
+    {
+      "code": "33",
+      "name": "BOTARELL"
+    },
+    {
+      "code": "34",
+      "name": "BRAFIM"
+    },
+    {
+      "code": "35",
+      "name": "CABACES"
+    },
+    {
+      "code": "36",
+      "name": "CABRA DEL CAMP"
+    },
+    {
+      "code": "37",
+      "name": "CALAFELL"
+    },
+    {
+      "code": "903",
+      "name": "CAMARLES"
+    },
+    {
+      "code": "38",
+      "name": "CAMBRILS"
+    },
+    {
+      "code": "39",
+      "name": "CAPAFONTS"
+    },
+    {
+      "code": "40",
+      "name": "CAPÇANES"
+    },
+    {
+      "code": "41",
+      "name": "CASERES"
+    },
+    {
+      "code": "42",
+      "name": "CASTELLVELL DEL CAMP"
+    },
+    {
+      "code": "43",
+      "name": "CATLLAR (EL)"
+    },
+    {
+      "code": "45",
+      "name": "COLLDEJOU"
+    },
+    {
+      "code": "46",
+      "name": "CONESA"
+    },
+    {
+      "code": "47",
+      "name": "CONSTANTI"
+    },
+    {
+      "code": "48",
+      "name": "CORBERA D'EBRE"
+    },
+    {
+      "code": "49",
+      "name": "CORNUDELLA DE MONTSANT"
+    },
+    {
+      "code": "50",
+      "name": "CREIXELL"
+    },
+    {
+      "code": "51",
+      "name": "CUNIT"
+    },
+    {
+      "code": "901",
+      "name": "DELTEBRE"
+    },
+    {
+      "code": "53",
+      "name": "DUESAIGÜES"
+    },
+    {
+      "code": "54",
+      "name": "ESPLUGA DE FRANCOLI (L')"
+    },
+    {
+      "code": "55",
+      "name": "FALSET"
+    },
+    {
+      "code": "56",
+      "name": "FATARELLA (LA)"
+    },
+    {
+      "code": "57",
+      "name": "FEBRO (LA)"
+    },
+    {
+      "code": "58",
+      "name": "FIGUERA (LA)"
+    },
+    {
+      "code": "59",
+      "name": "FIGUEROLA DEL CAMP"
+    },
+    {
+      "code": "60",
+      "name": "FLIX"
+    },
+    {
+      "code": "61",
+      "name": "FORES"
+    },
+    {
+      "code": "62",
+      "name": "FREGINALS"
+    },
+    {
+      "code": "63",
+      "name": "GALERA (LA)"
+    },
+    {
+      "code": "64",
+      "name": "GANDESA"
+    },
+    {
+      "code": "65",
+      "name": "GARCIA"
+    },
+    {
+      "code": "66",
+      "name": "GARIDELLS (ELS)"
+    },
+    {
+      "code": "67",
+      "name": "GINESTAR"
+    },
+    {
+      "code": "68",
+      "name": "GODALL"
+    },
+    {
+      "code": "69",
+      "name": "GRATALLOPS"
+    },
+    {
+      "code": "70",
+      "name": "GUIAMETS (ELS)"
+    },
+    {
+      "code": "71",
+      "name": "HORTA DE SANT JOAN"
+    },
+    {
+      "code": "72",
+      "name": "LLOAR (EL)"
+    },
+    {
+      "code": "73",
+      "name": "LLORAC"
+    },
+    {
+      "code": "74",
+      "name": "LLORENÇ DEL PENEDES"
+    },
+    {
+      "code": "76",
+      "name": "MARÇA"
+    },
+    {
+      "code": "75",
+      "name": "MARGALEF"
+    },
+    {
+      "code": "77",
+      "name": "MAS DE BARBERANS"
+    },
+    {
+      "code": "78",
+      "name": "MASDENVERGE"
+    },
+    {
+      "code": "79",
+      "name": "MASLLORENÇ"
+    },
+    {
+      "code": "80",
+      "name": "MASO (LA)"
+    },
+    {
+      "code": "81",
+      "name": "MASPUJOLS"
+    },
+    {
+      "code": "82",
+      "name": "MASROIG (EL)"
+    },
+    {
+      "code": "83",
+      "name": "MILA (EL)"
+    },
+    {
+      "code": "84",
+      "name": "MIRAVET"
+    },
+    {
+      "code": "85",
+      "name": "MOLAR (EL)"
+    },
+    {
+      "code": "86",
+      "name": "MONTBLANC"
+    },
+    {
+      "code": "88",
+      "name": "MONTBRIO DEL CAMP"
+    },
+    {
+      "code": "89",
+      "name": "MONTFERRI"
+    },
+    {
+      "code": "90",
+      "name": "MONTMELL (EL)"
+    },
+    {
+      "code": "91",
+      "name": "MONT-RAL"
+    },
+    {
+      "code": "92",
+      "name": "MONT-ROIG DEL CAMP"
+    },
+    {
+      "code": "93",
+      "name": "MORA D'EBRE"
+    },
+    {
+      "code": "94",
+      "name": "MORA LA NOVA"
+    },
+    {
+      "code": "95",
+      "name": "MORELL (EL)"
+    },
+    {
+      "code": "96",
+      "name": "MORERA DE MONTSANT (LA)"
+    },
+    {
+      "code": "97",
+      "name": "NOU DE GAIA (LA)"
+    },
+    {
+      "code": "98",
+      "name": "NULLES"
+    },
+    {
+      "code": "100",
+      "name": "PALLARESOS (ELS)"
+    },
+    {
+      "code": "99",
+      "name": "PALMA D'EBRE (LA)"
+    },
+    {
+      "code": "101",
+      "name": "PASSANANT I BELLTALL"
+    },
+    {
+      "code": "102",
+      "name": "PAÜLS"
+    },
+    {
+      "code": "103",
+      "name": "PERAFORT"
+    },
+    {
+      "code": "104",
+      "name": "PERELLO (EL)"
+    },
+    {
+      "code": "105",
+      "name": "PILES (LES)"
+    },
+    {
+      "code": "106",
+      "name": "PINELL DE BRAI (EL)"
+    },
+    {
+      "code": "107",
+      "name": "PIRA"
+    },
+    {
+      "code": "108",
+      "name": "PLA DE SANTA MARIA (EL)"
+    },
+    {
+      "code": "109",
+      "name": "POBLA DE MAFUMET (LA)"
+    },
+    {
+      "code": "110",
+      "name": "POBLA DE MASSALUCA (LA)"
+    },
+    {
+      "code": "111",
+      "name": "POBLA DE MONTORNES (LA)"
+    },
+    {
+      "code": "112",
+      "name": "POBOLEDA"
+    },
+    {
+      "code": "113",
+      "name": "PONT D'ARMENTERA (EL)"
+    },
+    {
+      "code": "141",
+      "name": "PONTILS"
+    },
+    {
+      "code": "114",
+      "name": "PORRERA"
+    },
+    {
+      "code": "115",
+      "name": "PRADELL DE LA TEIXETA"
+    },
+    {
+      "code": "116",
+      "name": "PRADES"
+    },
+    {
+      "code": "117",
+      "name": "PRAT DE COMTE"
+    },
+    {
+      "code": "118",
+      "name": "PRATDIP"
+    },
+    {
+      "code": "119",
+      "name": "PUIGPELAT"
+    },
+    {
+      "code": "120",
+      "name": "QUEROL"
+    },
+    {
+      "code": "121",
+      "name": "RASQUERA"
+    },
+    {
+      "code": "122",
+      "name": "RENAU"
+    },
+    {
+      "code": "123",
+      "name": "REUS"
+    },
+    {
+      "code": "124",
+      "name": "RIBA (LA)"
+    },
+    {
+      "code": "125",
+      "name": "RIBA-ROJA D'EBRE"
+    },
+    {
+      "code": "126",
+      "name": "RIERA DE GAIA (LA)"
+    },
+    {
+      "code": "127",
+      "name": "RIUDECANYES"
+    },
+    {
+      "code": "128",
+      "name": "RIUDECOLS"
+    },
+    {
+      "code": "129",
+      "name": "RIUDOMS"
+    },
+    {
+      "code": "130",
+      "name": "ROCAFORT DE QUERALT"
+    },
+    {
+      "code": "131",
+      "name": "RODA DE BARA"
+    },
+    {
+      "code": "132",
+      "name": "RODONYA"
+    },
+    {
+      "code": "133",
+      "name": "ROQUETES"
+    },
+    {
+      "code": "134",
+      "name": "ROURELL (EL)"
+    },
+    {
+      "code": "135",
+      "name": "SALOMO"
+    },
+    {
+      "code": "905",
+      "name": "SALOU"
+    },
+    {
+      "code": "136",
+      "name": "SANT CARLES DE LA RAPITA"
+    },
+    {
+      "code": "137",
+      "name": "SANT JAUME DELS DOMENYS"
+    },
+    {
+      "code": "902",
+      "name": "SANT JAUME D'ENVEJA"
+    },
+    {
+      "code": "138",
+      "name": "SANTA BARBARA"
+    },
+    {
+      "code": "139",
+      "name": "SANTA COLOMA DE QUERALT"
+    },
+    {
+      "code": "140",
+      "name": "SANTA OLIVA"
+    },
+    {
+      "code": "142",
+      "name": "SARRAL"
+    },
+    {
+      "code": "143",
+      "name": "SAVALLA DEL COMTAT"
+    },
+    {
+      "code": "144",
+      "name": "SECUITA (LA)"
+    },
+    {
+      "code": "145",
+      "name": "SELVA DEL CAMP (LA)"
+    },
+    {
+      "code": "146",
+      "name": "SENAN"
+    },
+    {
+      "code": "44",
+      "name": "SENIA (LA)"
+    },
+    {
+      "code": "147",
+      "name": "SOLIVELLA"
+    },
+    {
+      "code": "148",
+      "name": "TARRAGONA"
+    },
+    {
+      "code": "149",
+      "name": "TIVENYS"
+    },
+    {
+      "code": "150",
+      "name": "TIVISSA"
+    },
+    {
+      "code": "151",
+      "name": "TORRE DE FONTAUBELLA (LA)"
+    },
+    {
+      "code": "152",
+      "name": "TORRE DE L'ESPANYOL (LA)"
+    },
+    {
+      "code": "153",
+      "name": "TORREDEMBARRA"
+    },
+    {
+      "code": "154",
+      "name": "TORROJA DEL PRIORAT"
+    },
+    {
+      "code": "155",
+      "name": "TORTOSA"
+    },
+    {
+      "code": "156",
+      "name": "ULLDECONA"
+    },
+    {
+      "code": "157",
+      "name": "ULLDEMOLINS"
+    },
+    {
+      "code": "158",
+      "name": "VALLCLARA"
+    },
+    {
+      "code": "159",
+      "name": "VALLFOGONA DE RIUCORB"
+    },
+    {
+      "code": "160",
+      "name": "VALLMOLL"
+    },
+    {
+      "code": "161",
+      "name": "VALLS"
+    },
+    {
+      "code": "162",
+      "name": "VANDELLOS I L'HOSPITALET DE L'INFANT"
+    },
+    {
+      "code": "163",
+      "name": "VENDRELL (EL)"
+    },
+    {
+      "code": "164",
+      "name": "VESPELLA DE GAIA"
+    },
+    {
+      "code": "165",
+      "name": "VILABELLA"
+    },
+    {
+      "code": "175",
+      "name": "VILALBA DELS ARCS"
+    },
+    {
+      "code": "166",
+      "name": "VILALLONGA DEL CAMP"
+    },
+    {
+      "code": "168",
+      "name": "VILANOVA DE PRADES"
+    },
+    {
+      "code": "167",
+      "name": "VILANOVA D'ESCORNALBOU"
+    },
+    {
+      "code": "169",
+      "name": "VILAPLANA"
+    },
+    {
+      "code": "170",
+      "name": "VILA-RODONA"
+    },
+    {
+      "code": "171",
+      "name": "VILA-SECA"
+    },
+    {
+      "code": "172",
+      "name": "VILAVERD"
+    },
+    {
+      "code": "173",
+      "name": "VILELLA ALTA (LA)"
+    },
+    {
+      "code": "174",
+      "name": "VILELLA BAIXA (LA)"
+    },
+    {
+      "code": "176",
+      "name": "VIMBODI I POBLET"
+    },
+    {
+      "code": "177",
+      "name": "VINEBRE"
+    },
+    {
+      "code": "178",
+      "name": "VINYOLS I ELS ARCS"
+    },
+    {
+      "code": "52",
+      "name": "XERTA"
+    }
+  ],
+  "localidades": {
+    "1": {
+      "name": "AIGUAMURCIA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">AIGUAMURCIA</option><option value=\"000100\">AIGUAMURCIA</option><option value=\"000200\">ALBA (L')</option><option value=\"000201\">CAL CANONGE</option><option value=\"000202\">DESTRES (LES)</option><option value=\"000203\">MASBARRAT</option><option value=\"000300\">ORDRES (LES)</option><option value=\"000400\">PLA DE MANLLEU</option><option value=\"000500\">PLANETA (LA)</option><option value=\"000600\">POBLES (LES)</option><option value=\"000700\">SANTES CREUS</option><option value=\"000800\">URB DE ELS MANANTIALS</option><option value=\"000900\">URB MAS D'EN PARES</option>"
+    },
+    "2": {
+      "name": "ALBINYANA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALBINYANA</option><option value=\"000100\">ALBINYANA</option><option value=\"000300\">BONATERRA I</option><option value=\"000400\">BONATERRA II</option><option value=\"000500\">MASIES DEL TORRENT</option><option value=\"000600\">MOLI DEL BLANQUILLO</option><option value=\"000700\">PAPIOLA (LA)</option><option value=\"000200\">PECES (LES)</option>"
+    },
+    "3": {
+      "name": "ALBIOL (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALBIOL (L')</option><option value=\"000100\">ALBIOL (L')</option><option value=\"000200\">BONRETORN</option><option value=\"000300\">MASIES CATALANES</option><option value=\"000500\">VILLA SAN FRANCISCO</option>"
+    },
+    "4": {
+      "name": "ALCANAR",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALCANAR</option><option value=\"000100\">ALCANAR</option><option value=\"000200\">ALCANAR-PLATJA</option><option value=\"000300\">CASES D'ALCANAR (LES)</option><option value=\"000204\">SECTOR D</option><option value=\"000205\">SECTOR E</option><option value=\"000206\">SECTOR F</option><option value=\"000207\">SECTOR G</option><option value=\"000208\">SECTOR H</option><option value=\"000209\">SECTOR I</option><option value=\"000210\">SECTOR J</option><option value=\"000400\">SELLETA (LA)</option>"
+    },
+    "5": {
+      "name": "ALCOVER",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALCOVER</option><option value=\"000100\">ALCOVER</option><option value=\"001000\">BURQUERA (LA)</option><option value=\"000600\">CABANA (LA)</option><option value=\"001100\">CAMI DELS MUNTANYANTS</option><option value=\"001200\">MAS GASSOL</option><option value=\"000700\">MASIES CATALANES</option><option value=\"000300\">PLANA (LA)</option><option value=\"000800\">RESIDENCIAL REMEI</option><option value=\"000900\">SERRADALT</option><option value=\"000801\">URBANITZACIO RESIDENCIAL REMEI</option>"
+    },
+    "6": {
+      "name": "ALDOVER",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALDOVER</option><option value=\"000000\">ALDOVER</option>"
+    },
+    "7": {
+      "name": "ALEIXAR (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALEIXAR (L')</option><option value=\"000000\">ALEIXAR (L')</option>"
+    },
+    "8": {
+      "name": "ALFARA DE CARLES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALFARA DE CARLES</option><option value=\"000000\">ALFARA DE CARLES</option>"
+    },
+    "9": {
+      "name": "ALFORJA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALFORJA</option><option value=\"000100\">ALFORJA</option><option value=\"000200\">BARQUERES</option><option value=\"000300\">GARRIGOTS</option><option value=\"000400\">MAS DE L'ALEU</option><option value=\"000500\">PORTUGAL</option><option value=\"000600\">SANT ANTONI</option><option value=\"000700\">SERVIANS</option>"
+    },
+    "10": {
+      "name": "ALIO",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALIO</option><option value=\"000000\">ALIO</option>"
+    },
+    "11": {
+      "name": "ALMOSTER",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALMOSTER</option><option value=\"000100\">ALMOSTER</option><option value=\"000500\">CASTELLMOSTER</option><option value=\"000400\">PICARANY</option><option value=\"000200\">PUNTARRONS</option>"
+    },
+    "12": {
+      "name": "ALTAFULLA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ALTAFULLA</option><option value=\"000100\">ALTAFULLA</option><option value=\"000300\">BRISES DEL MAR</option>"
+    },
+    "13": {
+      "name": "AMETLLA DE MAR (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000302\">ALIA (L')</option><option value=\"000000\">AMETLLA DE MAR (L')</option><option value=\"000300\">AMETLLA DE MAR (L')</option><option value=\"000303\">CALA NOVA</option><option value=\"000304\">CALAFAT</option><option value=\"000305\">ESTANY (L')</option><option value=\"000306\">HIDALGO (EL)</option><option value=\"000311\">MARINA SANT JORDI</option><option value=\"000307\">RACONS (ELS)</option><option value=\"000308\">ROQUES DAURADES</option><option value=\"000309\">S. JORGE DE ALFAMA</option><option value=\"000310\">TRES CALES</option>"
+    },
+    "14": {
+      "name": "AMPOSTA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">AMPOSTA</option><option value=\"000100\">AMPOSTA</option><option value=\"000200\">BALADA</option><option value=\"001200\">EUCALIPTUS</option><option value=\"000300\">FAVARET</option><option value=\"001100\">POBLE NOU DEL DELTA</option>"
+    },
+    "15": {
+      "name": "ARBOLI",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARBOLI</option><option value=\"000000\">ARBOLI</option>"
+    },
+    "16": {
+      "name": "ARBOÇ (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ARBOÇ (L')</option><option value=\"000100\">ARBOÇ (L')</option><option value=\"000200\">CAN VIES</option><option value=\"000300\">CASETES DE PUIGMOLTO</option><option value=\"000400\">LLACUNETA (LA)</option>"
+    },
+    "17": {
+      "name": "ARGENTERA (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">ARGENTERA (L')</option><option value=\"000100\">ARGENTERA (L')</option><option value=\"000200\">SORT (LA)</option>"
+    },
+    "18": {
+      "name": "ARNES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARNES</option><option value=\"000000\">ARNES</option>"
+    },
+    "19": {
+      "name": "ASCO",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ASCO</option><option value=\"000000\">ASCO</option>"
+    },
+    "20": {
+      "name": "BANYERES DEL PENEDES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">BANYERES DEL PENEDES</option><option value=\"000100\">BANYERES DEL PENEDES</option><option value=\"000200\">BARRI DE SAIFORES</option><option value=\"000300\">MASIES DE SANT MIQUEL</option><option value=\"000600\">PRIORAT DE BANYERES</option><option value=\"000500\">URBANITZACIO CASA ROJA</option><option value=\"000400\">ZONA RESIDENCIAL BOSCOS</option>"
+    },
+    "21": {
+      "name": "BARBERA DE LA CONCA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">BARBERA DE LA CONCA</option><option value=\"000100\">BARBERA DE LA CONCA</option><option value=\"000200\">OLLERS</option>"
+    },
+    "22": {
+      "name": "BATEA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BATEA</option><option value=\"000000\">BATEA</option>"
+    },
+    "23": {
+      "name": "BELLMUNT DEL PRIORAT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BELLMUNT DEL PRIORAT</option><option value=\"000000\">BELLMUNT DEL PRIORAT</option>"
+    },
+    "24": {
+      "name": "BELLVEI",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000202\">BARONIA DE MAR</option><option value=\"000000\">BELLVEI</option><option value=\"000200\">BELLVEI</option>"
+    },
+    "25": {
+      "name": "BENIFALLET",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BENIFALLET</option><option value=\"000000\">BENIFALLET</option>"
+    },
+    "26": {
+      "name": "BENISSANET",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BENISSANET</option><option value=\"000000\">BENISSANET</option>"
+    },
+    "27": {
+      "name": "BISBAL DE FALSET (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BISBAL DE FALSET (LA)</option><option value=\"000000\">BISBAL DE FALSET (LA)</option>"
+    },
+    "28": {
+      "name": "BISBAL DEL PENEDES (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">BISBAL DEL PENEDES (LA)</option><option value=\"000100\">BISBAL DEL PENEDES (LA)</option><option value=\"000200\">CAN GORDEI</option><option value=\"000300\">ESPLAI DEL PENEDES (L')</option><option value=\"000900\">MASIETA (LA)</option><option value=\"000400\">MIRALBA (LA)</option><option value=\"000500\">ORTIGOS (L')</option><option value=\"000600\">PAPAGAI (EL)</option><option value=\"000700\">PINEDA SANTA CRISTINA (LA)</option><option value=\"000800\">PRIORAT DE LA BISBAL (EL)</option>"
+    },
+    "29": {
+      "name": "BLANCAFORT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BLANCAFORT</option><option value=\"000000\">BLANCAFORT</option>"
+    },
+    "30": {
+      "name": "BONASTRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">BONASTRE</option><option value=\"000100\">BONASTRE</option><option value=\"000300\">FONT DE LA GAVATXA (LA)</option><option value=\"000200\">VINYA</option>"
+    },
+    "31": {
+      "name": "BORGES DEL CAMP (LES)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BORGES DEL CAMP (LES)</option><option value=\"000000\">BORGES DEL CAMP (LES)</option>"
+    },
+    "32": {
+      "name": "BOT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BOT</option><option value=\"000000\">BOT</option>"
+    },
+    "33": {
+      "name": "BOTARELL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">BOTARELL</option><option value=\"000100\">BOTARELL</option><option value=\"000200\">COSTES (LES)</option>"
+    },
+    "34": {
+      "name": "BRAFIM",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BRAFIM</option><option value=\"000000\">BRAFIM</option>"
+    },
+    "35": {
+      "name": "CABACES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CABACES</option><option value=\"000000\">CABACES</option>"
+    },
+    "36": {
+      "name": "CABRA DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">CABRA DEL CAMP</option><option value=\"000100\">CABRA DEL CAMP</option><option value=\"000400\">CAN RUI</option><option value=\"000200\">MAS DEL PLATA</option><option value=\"000300\">MIRALCAMP-RESIDENCIAL</option>"
+    },
+    "37": {
+      "name": "CALAFELL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000301\">ALORDA PARK</option><option value=\"000100\">BELLAMAR</option><option value=\"000500\">BONANOVA</option><option value=\"000000\">CALAFELL</option><option value=\"000200\">CALAFELL</option><option value=\"000202\">CALAFELL-PARK</option><option value=\"000203\">MAS DE LA MEL</option><option value=\"000204\">MAS ROMEU</option><option value=\"000302\">PLAYA DE CALAFELL</option><option value=\"000300\">PLAYA DE CALAFELL</option><option value=\"000205\">PRAT CALAFELL</option><option value=\"000206\">RESIDENCIAL</option><option value=\"000400\">SEGUR DE CALAFELL</option>"
+    },
+    "38": {
+      "name": "CAMBRILS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARDIACA</option><option value=\"000108\">ARDIACA</option><option value=\"000000\">CAMBRILS</option><option value=\"000200\">CAMBRILS</option><option value=\"000202\">CAMBRILS</option><option value=\"000201\">CAMBRILS BADIA</option><option value=\"000300\">LLOSA (LA)</option><option value=\"000309\">LLOSA (LA)</option><option value=\"000400\">MAS D'EN BOSCH</option><option value=\"000403\">MAS D'EN BOSCH</option><option value=\"000500\">PARC SAMA</option><option value=\"000600\">VILAFORTUNY</option><option value=\"000603\">VILAFORTUNY</option>"
+    },
+    "39": {
+      "name": "CAPAFONTS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CAPAFONTS</option><option value=\"000000\">CAPAFONTS</option>"
+    },
+    "40": {
+      "name": "CAPÇANES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CAPÇANES</option><option value=\"000000\">CAPÇANES</option>"
+    },
+    "41": {
+      "name": "CASERES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CASERES</option><option value=\"000000\">CASERES</option>"
+    },
+    "42": {
+      "name": "CASTELLVELL DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000600\">ARBOCERES</option><option value=\"000700\">CASTELLMOSTER</option><option value=\"000000\">CASTELLVELL DEL CAMP</option><option value=\"000100\">CASTELLVELL DEL CAMP</option><option value=\"000500\">FLOR DEL CAMP</option><option value=\"000800\">PINAR IV FASE (EL)</option><option value=\"000200\">PLANES DEL PUIG</option><option value=\"000300\">PUGETS</option><option value=\"000400\">SERRES</option>"
+    },
+    "43": {
+      "name": "CATLLAR (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">BONAIGUA</option><option value=\"000300\">BONAIRE</option><option value=\"000500\">CATIVERA (LA)</option><option value=\"000000\">CATLLAR (EL)</option><option value=\"000100\">CATLLAR (EL)</option><option value=\"000600\">COCONS (ELS)</option><option value=\"000400\">COLL DE TAPIOLES</option><option value=\"000700\">ESPLAI TARRAGONI</option><option value=\"001300\">MANOUS</option><option value=\"001301\">MANOUS 1</option><option value=\"001302\">MANOUS 2</option><option value=\"001303\">MANOUS 3</option><option value=\"000800\">MAS DE BLANC</option><option value=\"000900\">MAS DE CARGOL</option><option value=\"001500\">MAS DE COSME</option><option value=\"001600\">MAS DE GEREMBI</option><option value=\"001700\">MAS DE PANXE</option><option value=\"001304\">MAS D'ENRIC</option><option value=\"001000\">MAS VILET DELS PINS</option><option value=\"002000\">MASIETA DE SALORT</option><option value=\"001100\">MEDOL (EL)</option><option value=\"001200\">PINALBERT</option><option value=\"001800\">RESIDENCIAL 5 ESTRELLES</option><option value=\"001400\">SANT ROC</option><option value=\"001900\">SANTA TECLA</option><option value=\"002100\">URBANITZACIO PARC DE LLEVANT</option>"
+    },
+    "44": {
+      "name": "SENIA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">PLANS (ELS)</option><option value=\"000000\">SENIA (LA)</option><option value=\"000100\">SENIA (LA)</option>"
+    },
+    "45": {
+      "name": "COLLDEJOU",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">COLLDEJOU</option><option value=\"000000\">COLLDEJOU</option>"
+    },
+    "46": {
+      "name": "CONESA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CONESA</option><option value=\"000000\">CONESA</option>"
+    },
+    "47": {
+      "name": "CONSTANTI",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CONSTANTI</option><option value=\"000000\">CONSTANTI</option>"
+    },
+    "48": {
+      "name": "CORBERA D'EBRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CORBERA D'EBRE</option><option value=\"000000\">CORBERA D'EBRE</option>"
+    },
+    "49": {
+      "name": "CORNUDELLA DE MONTSANT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALBARCA</option><option value=\"000300\">CORNUDELLA DE MONTSANT</option><option value=\"000000\">CORNUDELLA DE MONTSANT</option><option value=\"000200\">SIURANA</option>"
+    },
+    "50": {
+      "name": "CREIXELL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">COMA (LA)</option><option value=\"000000\">CREIXELL</option><option value=\"000100\">CREIXELL</option><option value=\"000300\">CREIXELL-MAR</option><option value=\"000400\">ERES (LES)</option><option value=\"000500\">MARINA DE CREIXELL</option><option value=\"000600\">MASSO (LA)</option><option value=\"000700\">MORISQUES (LES)</option><option value=\"000800\">PLANA (LA)</option><option value=\"000900\">PORT-ROMA</option><option value=\"001000\">RACO DEL CESAR</option><option value=\"001100\">SINIES (LES)</option>"
+    },
+    "51": {
+      "name": "CUNIT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CUNIT</option><option value=\"000000\">CUNIT</option>"
+    },
+    "52": {
+      "name": "XERTA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">XERTA</option><option value=\"000000\">XERTA</option>"
+    },
+    "53": {
+      "name": "DUESAIGÜES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">DUESAIGÜES</option><option value=\"000000\">DUESAIGÜES</option>"
+    },
+    "54": {
+      "name": "ESPLUGA DE FRANCOLI (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BALNEARI LES MASIES</option><option value=\"000000\">ESPLUGA DE FRANCOLI (L')</option><option value=\"000200\">ESPLUGA DE FRANCOLI (L')</option><option value=\"000300\">ESTACIO (L')</option><option value=\"000400\">SANTISSIMA TRINITAT</option>"
+    },
+    "55": {
+      "name": "FALSET",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">FALSET</option><option value=\"000000\">FALSET</option>"
+    },
+    "56": {
+      "name": "FATARELLA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CAMPOSINES</option><option value=\"000200\">FATARELLA (LA)</option><option value=\"000000\">FATARELLA (LA)</option>"
+    },
+    "57": {
+      "name": "FEBRO (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">FEBRO (LA)</option><option value=\"000000\">FEBRO (LA)</option>"
+    },
+    "58": {
+      "name": "FIGUERA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">FIGUERA (LA)</option><option value=\"000000\">FIGUERA (LA)</option>"
+    },
+    "59": {
+      "name": "FIGUEROLA DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">FIGUEROLA DEL CAMP</option><option value=\"000100\">FIGUEROLA DEL CAMP</option><option value=\"000102\">MIRAMAR</option>"
+    },
+    "60": {
+      "name": "FLIX",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">COLONIA FABRICA</option><option value=\"000200\">COMELLARETS</option><option value=\"000300\">FLIX</option><option value=\"000000\">FLIX</option><option value=\"000302\">RIBE</option>"
+    },
+    "61": {
+      "name": "FORES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">FORES</option><option value=\"000000\">FORES</option>"
+    },
+    "62": {
+      "name": "FREGINALS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">FREGINALS</option><option value=\"000000\">FREGINALS</option>"
+    },
+    "63": {
+      "name": "GALERA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GALERA (LA)</option><option value=\"000000\">GALERA (LA)</option>"
+    },
+    "64": {
+      "name": "GANDESA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GANDESA</option><option value=\"000000\">GANDESA</option>"
+    },
+    "65": {
+      "name": "GARCIA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GARCIA</option><option value=\"000000\">GARCIA</option>"
+    },
+    "66": {
+      "name": "GARIDELLS (ELS)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000102\">FONT DE LA ROCA</option><option value=\"000000\">GARIDELLS (ELS)</option><option value=\"000100\">GARIDELLS (ELS)</option>"
+    },
+    "67": {
+      "name": "GINESTAR",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GINESTAR</option><option value=\"000000\">GINESTAR</option>"
+    },
+    "68": {
+      "name": "GODALL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GODALL</option><option value=\"000000\">GODALL</option>"
+    },
+    "69": {
+      "name": "GRATALLOPS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GRATALLOPS</option><option value=\"000000\">GRATALLOPS</option>"
+    },
+    "70": {
+      "name": "GUIAMETS (ELS)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GUIAMETS (ELS)</option><option value=\"000000\">GUIAMETS (ELS)</option>"
+    },
+    "71": {
+      "name": "HORTA DE SANT JOAN",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">HORTA DE SANT JOAN</option><option value=\"000100\">HORTA DE SANT JOAN</option><option value=\"000200\">MONCADES</option>"
+    },
+    "72": {
+      "name": "LLOAR (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">LLOAR (EL)</option><option value=\"000000\">LLOAR (EL)</option>"
+    },
+    "73": {
+      "name": "LLORAC",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">ALBIO</option><option value=\"000300\">CIRERA (LA)</option><option value=\"000100\">LLORAC</option><option value=\"000000\">LLORAC</option><option value=\"000400\">RAURIC</option>"
+    },
+    "74": {
+      "name": "LLORENÇ DEL PENEDES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">LLORENÇ DEL PENEDES</option><option value=\"000100\">LLORENÇ DEL PENEDES</option><option value=\"000102\">LLORENÇ DEL PENEDES</option><option value=\"000200\">PRIORAT DE BANYERES</option>"
+    },
+    "75": {
+      "name": "MARGALEF",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MARGALEF</option><option value=\"000000\">MARGALEF</option>"
+    },
+    "76": {
+      "name": "MARÇA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">COMES (LES)</option><option value=\"000200\">MARÇA</option><option value=\"000000\">MARÇA</option><option value=\"000300\">VERINXELL (EL)</option>"
+    },
+    "77": {
+      "name": "MAS DE BARBERANS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MAS DE BARBERANS</option><option value=\"000000\">MAS DE BARBERANS</option>"
+    },
+    "78": {
+      "name": "MASDENVERGE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MASDENVERGE</option><option value=\"000000\">MASDENVERGE</option>"
+    },
+    "79": {
+      "name": "MASLLORENÇ",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000300\">FONT D'EN TALLO</option><option value=\"000100\">MASARBONES</option><option value=\"000200\">MASLLORENÇ</option><option value=\"000000\">MASLLORENÇ</option>"
+    },
+    "80": {
+      "name": "MASO (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MASO (LA)</option><option value=\"000000\">MASO (LA)</option>"
+    },
+    "81": {
+      "name": "MASPUJOLS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">MASPUJOLS</option><option value=\"000100\">MASPUJOLS</option><option value=\"000200\">ROCABRUNA</option>"
+    },
+    "82": {
+      "name": "MASROIG (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MASROIG (EL)</option><option value=\"000000\">MASROIG (EL)</option>"
+    },
+    "83": {
+      "name": "MILA (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MILA (EL)</option><option value=\"000000\">MILA (EL)</option>"
+    },
+    "84": {
+      "name": "MIRAVET",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MIRAVET</option><option value=\"000000\">MIRAVET</option>"
+    },
+    "85": {
+      "name": "MOLAR (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MOLAR (EL)</option><option value=\"000000\">MOLAR (EL)</option>"
+    },
+    "86": {
+      "name": "MONTBLANC",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">GUARDIA DELS PRATS</option><option value=\"000200\">LILLA</option><option value=\"000000\">MONTBLANC</option><option value=\"000300\">MONTBLANC</option><option value=\"000400\">PINATELL</option><option value=\"000500\">PRENAFETA</option><option value=\"000600\">ROJALS</option>"
+    },
+    "88": {
+      "name": "MONTBRIO DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MONTBRIO DEL CAMP</option><option value=\"000000\">MONTBRIO DEL CAMP</option>"
+    },
+    "89": {
+      "name": "MONTFERRI",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">MONTFERRI</option><option value=\"000100\">MONTFERRI</option><option value=\"000103\">URBANITZACIO LA PLANETA</option><option value=\"000102\">URBANITZACIO L'ALZINETA</option><option value=\"000200\">VILARDIDA</option>"
+    },
+    "90": {
+      "name": "MONTMELL (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">AIGUAVIVA</option><option value=\"000200\">CANFERRE</option><option value=\"000300\">JUNCOSA DE MONTMELL</option><option value=\"000400\">MAS MATEU</option><option value=\"000000\">MONTMELL (EL)</option><option value=\"000800\">URBANITZACIO ATALAYA MEDITERRANEA</option><option value=\"000900\">URBANITZACIO EL MIRADOR DEL PENEDES</option><option value=\"000700\">URBANITZACIO LA MOIXETA</option><option value=\"001000\">URBANITZACIO PINEDAS ALTAS</option>"
+    },
+    "91": {
+      "name": "MONT-RAL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">AIXABIGA (L')</option><option value=\"000200\">BOSQUET (EL)</option><option value=\"000300\">CABRERA (LA)</option><option value=\"000400\">CADENETA (LA)</option><option value=\"000500\">FARENA</option><option value=\"000600\">MONT-RAL</option><option value=\"000000\">MONT-RAL</option>"
+    },
+    "92": {
+      "name": "MONT-ROIG DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000202\">BONMONT TERRES NOVES</option><option value=\"000102\">CASALOT (EL)</option><option value=\"000301\">CLUB MONTROIG</option><option value=\"000103\">COSTA ZEFIR</option><option value=\"000302\">ETERSA</option><option value=\"000303\">MASOS D'EN BLADE</option><option value=\"000304\">MAYNOU</option><option value=\"000104\">MIAMI PLAYA</option><option value=\"000100\">MIAMI PLAYA</option><option value=\"000200\">MONT-ROIG DEL CAMP</option><option value=\"000000\">MONT-ROIG DEL CAMP</option><option value=\"000305\">MONTROIG-BAHIA</option><option value=\"000306\">PARAISO (EL)</option><option value=\"000307\">PARQUE DE MONTROIG</option><option value=\"000308\">PINOS DE MIRAMAR</option><option value=\"000313\">PLA PARCIAL SECTOR 28</option><option value=\"000300\">POBLES (LES)</option><option value=\"000309\">RIVIERA (LA)</option><option value=\"000310\">RUSTICAL BALNEARI</option><option value=\"000311\">RUSTICAL MONTROIG</option><option value=\"000312\">SANT MIQUEL DE MONTROIG</option><option value=\"000110\">SUDOEST</option><option value=\"000109\">VIA MARINA</option>"
+    },
+    "93": {
+      "name": "MORA D'EBRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MORA D'EBRE</option><option value=\"000000\">MORA D'EBRE</option>"
+    },
+    "94": {
+      "name": "MORA LA NOVA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MORA LA NOVA</option><option value=\"000000\">MORA LA NOVA</option>"
+    },
+    "95": {
+      "name": "MORELL (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MORELL (EL)</option><option value=\"000000\">MORELL (EL)</option>"
+    },
+    "96": {
+      "name": "MORERA DE MONTSANT (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">MORERA DE MONTSANT (LA)</option><option value=\"000100\">MORERA DE MONTSANT (LA)</option><option value=\"000200\">SCALA-DEI</option>"
+    },
+    "97": {
+      "name": "NOU DE GAIA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">NOU DE GAIA (LA)</option><option value=\"000000\">NOU DE GAIA (LA)</option>"
+    },
+    "98": {
+      "name": "NULLES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BELLAVISTA</option><option value=\"000200\">CASAFORT</option><option value=\"000300\">NULLES</option><option value=\"000000\">NULLES</option>"
+    },
+    "99": {
+      "name": "PALMA D'EBRE (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PALMA D'EBRE (LA)</option><option value=\"000000\">PALMA D'EBRE (LA)</option>"
+    },
+    "100": {
+      "name": "PALLARESOS (ELS)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000300\">HOSTALETS</option><option value=\"000700\">JARDINS IMPERI</option><option value=\"000000\">PALLARESOS (ELS)</option><option value=\"000500\">PALLARESOS (ELS)</option><option value=\"000600\">PALLARESOS PARK</option>"
+    },
+    "101": {
+      "name": "PASSANANT I BELLTALL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BELLTALL</option><option value=\"000200\">FONOLL</option><option value=\"000300\">GLORIETA</option><option value=\"000400\">PASSANANT</option><option value=\"000000\">PASSANANT I BELLTALL</option><option value=\"000500\">POBLA DE FARRAN</option><option value=\"000600\">SALA (LA)</option>"
+    },
+    "102": {
+      "name": "PAÜLS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PAÜLS</option><option value=\"000000\">PAÜLS</option>"
+    },
+    "103": {
+      "name": "PERAFORT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">PERAFORT</option><option value=\"000100\">PERAFORT</option><option value=\"000200\">PUIGDELFI</option>"
+    },
+    "104": {
+      "name": "PERELLO (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">PERELLO (EL)</option><option value=\"000200\">PERELLO (EL)</option><option value=\"000202\">PERELLO (EL)</option><option value=\"000203\">PERELLO-MAR</option>"
+    },
+    "105": {
+      "name": "PILES (LES)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BIURE DE GAIA</option><option value=\"000200\">GUIALMONS</option><option value=\"000300\">PILES (LES)</option><option value=\"000000\">PILES (LES)</option><option value=\"000400\">SANT GALLARD</option>"
+    },
+    "106": {
+      "name": "PINELL DE BRAI (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PINELL DE BRAI (EL)</option><option value=\"000000\">PINELL DE BRAI (EL)</option>"
+    },
+    "107": {
+      "name": "PIRA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PIRA</option><option value=\"000000\">PIRA</option>"
+    },
+    "108": {
+      "name": "PLA DE SANTA MARIA (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">PLA DE SANTA MARIA (EL)</option><option value=\"000100\">PLA DE SANTA MARIA (EL)</option><option value=\"000102\">TORRE DE SANTA MARIA</option>"
+    },
+    "109": {
+      "name": "POBLA DE MAFUMET (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">POBLA DE MAFUMET (LA)</option><option value=\"000000\">POBLA DE MAFUMET (LA)</option>"
+    },
+    "110": {
+      "name": "POBLA DE MASSALUCA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">POBLA DE MASSALUCA (LA)</option><option value=\"000000\">POBLA DE MASSALUCA (LA)</option>"
+    },
+    "111": {
+      "name": "POBLA DE MONTORNES (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000400\">FLOR DE ALMENDRO (URBANITZACIO)</option><option value=\"000000\">POBLA DE MONTORNES (LA)</option><option value=\"000100\">POBLA DE MONTORNES (LA)</option><option value=\"000200\">URBANITZACIO CASTELL DE MONTORNES</option><option value=\"000500\">URBANITZACIO EIXAMPLE-LLEVANT</option><option value=\"000300\">URBANITZACIO POBLAMAR</option>"
+    },
+    "112": {
+      "name": "POBOLEDA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">POBOLEDA</option><option value=\"000000\">POBOLEDA</option>"
+    },
+    "113": {
+      "name": "PONT D'ARMENTERA (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000101\">PLANETA (LA)</option><option value=\"000102\">PONT D'ARMENTERA (EL)</option><option value=\"000000\">PONT D'ARMENTERA (EL)</option><option value=\"000100\">PONT D'ARMENTERA (EL)</option>"
+    },
+    "114": {
+      "name": "PORRERA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PORRERA</option><option value=\"000000\">PORRERA</option>"
+    },
+    "115": {
+      "name": "PRADELL DE LA TEIXETA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ESTACION (LA)</option><option value=\"000200\">PRADELL</option><option value=\"000000\">PRADELL DE LA TEIXETA</option><option value=\"000300\">TORRE (LA)</option>"
+    },
+    "116": {
+      "name": "PRADES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PRADES</option><option value=\"000000\">PRADES</option>"
+    },
+    "117": {
+      "name": "PRAT DE COMTE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PRAT DE COMTE</option><option value=\"000000\">PRAT DE COMTE</option>"
+    },
+    "118": {
+      "name": "PRATDIP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PLANAS DEL REY</option><option value=\"000200\">PRATDIP</option><option value=\"000000\">PRATDIP</option><option value=\"000300\">SANTA MARINA</option>"
+    },
+    "119": {
+      "name": "PUIGPELAT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">PARTIDA SANT JOAN DE RUANES</option><option value=\"000000\">PUIGPELAT</option><option value=\"000100\">PUIGPELAT</option><option value=\"000300\">URBANITZACIO ELS ARCS</option><option value=\"000400\">URBANITZACIO LA PLANELLA</option><option value=\"000600\">URBANITZACIO LA SINIA</option><option value=\"000500\">URBANITZACIO LES BOVERES</option><option value=\"000700\">URBANITZACIO PUIGNOU</option>"
+    },
+    "120": {
+      "name": "QUEROL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000501\">ARBOÇAR (L')</option><option value=\"000502\">BONANY</option><option value=\"000503\">CAN LLENAS</option><option value=\"000200\">ESBLADA</option><option value=\"000505\">MAS BERMELL</option><option value=\"000504\">MAS GASSONS</option><option value=\"000300\">QUEROL</option><option value=\"000000\">QUEROL</option><option value=\"000506\">RANXOS DE BONANY</option><option value=\"000500\">VALLDOSSERA</option>"
+    },
+    "121": {
+      "name": "RASQUERA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">RASQUERA</option><option value=\"000000\">RASQUERA</option>"
+    },
+    "122": {
+      "name": "RENAU",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">RENAU</option><option value=\"000000\">RENAU</option>"
+    },
+    "123": {
+      "name": "REUS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000800\">MAS CARPA</option><option value=\"000900\">PELAYO</option><option value=\"001000\">PINAR (EL)</option><option value=\"000000\">REUS</option><option value=\"000600\">REUS</option><option value=\"001100\">SANT JOAN</option><option value=\"001200\">SOL I VISTA</option><option value=\"001001\">URBANITZACIO EL PINAR</option><option value=\"000801\">URBANITZACIO MAS CARPA</option><option value=\"000901\">URBANITZACIO PELAYO</option><option value=\"001101\">URBANITZACIO SANT JOAN</option><option value=\"001201\">URBANITZACIO SOL I VISTA</option>"
+    },
+    "124": {
+      "name": "RIBA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">HORTASSES (LES)</option><option value=\"000000\">RIBA (LA)</option><option value=\"000100\">RIBA (LA)</option>"
+    },
+    "125": {
+      "name": "RIBA-ROJA D'EBRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000102\">PINYERES (AGASI-ALEMANY)</option><option value=\"000000\">RIBA-ROJA D'EBRE</option><option value=\"000100\">RIBA-ROJA D'EBRE</option>"
+    },
+    "126": {
+      "name": "RIERA DE GAIA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARDENYA</option><option value=\"000400\">CASAS DE VIRGILI</option><option value=\"000300\">CASTELLOT (EL)</option><option value=\"000000\">RIERA DE GAIA (LA)</option><option value=\"000200\">RIERA DE GAIA (LA)</option><option value=\"000500\">URBANITZACIO RESIDENCIAL LA RIERA</option>"
+    },
+    "127": {
+      "name": "RIUDECANYES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">MAR DE RIUDECANYES</option><option value=\"000300\">MONTCLAR</option><option value=\"000000\">RIUDECANYES</option><option value=\"000100\">RIUDECANYES</option>"
+    },
+    "128": {
+      "name": "RIUDECOLS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">IRLES (LES)</option><option value=\"000000\">RIUDECOLS</option><option value=\"000200\">RIUDECOLS</option><option value=\"000202\">RIUDECOLS</option><option value=\"000201\">RIUDECOLS PARTIDA LAS COSTAS</option><option value=\"000400\">URBANIZACION RIU-CLUB</option><option value=\"000300\">VOLTES (LES)</option>"
+    },
+    "129": {
+      "name": "RIUDOMS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">RIUDOMS</option><option value=\"000000\">RIUDOMS</option>"
+    },
+    "130": {
+      "name": "ROCAFORT DE QUERALT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ROCAFORT DE QUERALT</option><option value=\"000000\">ROCAFORT DE QUERALT</option>"
+    },
+    "131": {
+      "name": "RODA DE BARA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000300\">BARAMAR</option><option value=\"000202\">BARQUERA</option><option value=\"000400\">ENSANCHE RESIDENCIAL</option><option value=\"000600\">FRANCASET (EL)</option><option value=\"000500\">MARTORELLA (LA)</option><option value=\"000205\">MAS ROIG</option><option value=\"000101\">MERYMAR</option><option value=\"000104\">POLIGON INDUSTRIAL L'AVENAR</option><option value=\"000206\">ROC SAN CAYETANO</option><option value=\"000100\">RODA DE BARA</option><option value=\"000000\">RODA DE BARA</option><option value=\"000102\">RODA DE BARA</option><option value=\"000103\">TORRES (LAS)</option><option value=\"000209\">ZONA COSTERA</option><option value=\"000200\">ZONA COSTERA</option>"
+    },
+    "132": {
+      "name": "RODONYA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">RODONYA</option><option value=\"000100\">RODONYA</option><option value=\"000102\">URBANITZACIO PINEDA DE SANTA CRISTINA</option>"
+    },
+    "133": {
+      "name": "ROQUETES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000201\">CARRETERA DEL REGUERS</option><option value=\"000100\">RAVAL DE CRISTO</option><option value=\"000000\">ROQUETES</option><option value=\"000200\">ROQUETES</option><option value=\"000202\">ROQUETES</option><option value=\"000203\">TORRE D'EN GIL (LA)</option>"
+    },
+    "134": {
+      "name": "ROURELL (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ROURELL (EL)</option><option value=\"000000\">ROURELL (EL)</option>"
+    },
+    "135": {
+      "name": "SALOMO",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">SALOMO</option><option value=\"000000\">SALOMO</option>"
+    },
+    "136": {
+      "name": "SANT CARLES DE LA RAPITA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">SALINES DE LA TRINITAT</option><option value=\"000200\">SANT CARLES DE LA RAPITA</option><option value=\"000000\">SANT CARLES DE LA RAPITA</option>"
+    },
+    "137": {
+      "name": "SANT JAUME DELS DOMENYS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000800\">ARQUET (L')</option><option value=\"000900\">ARQUETS (ELS)</option><option value=\"000100\">CARRONYA (LA)</option><option value=\"000200\">CORNUDELLA</option><option value=\"000300\">HOSTAL (L')</option><option value=\"000400\">LLETGER</option><option value=\"001000\">PAPAGAI (EL)</option><option value=\"000500\">PAPIOLET (EL)</option><option value=\"000600\">SANT JAUME DELS DOMENYS</option><option value=\"000000\">SANT JAUME DELS DOMENYS</option><option value=\"000700\">TORREGASSA (LA)</option>"
+    },
+    "138": {
+      "name": "SANTA BARBARA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">SANTA BARBARA</option><option value=\"000000\">SANTA BARBARA</option>"
+    },
+    "139": {
+      "name": "SANTA COLOMA DE QUERALT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">AGUILO</option><option value=\"000200\">POBLA (LA)</option><option value=\"000300\">ROQUES (LES)</option><option value=\"000400\">SANTA COLOMA DE QUERALT</option><option value=\"000000\">SANTA COLOMA DE QUERALT</option>"
+    },
+    "140": {
+      "name": "SANTA OLIVA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000302\">AMPLIACIO DEL POBLE</option><option value=\"000800\">ARBORNAR (L')</option><option value=\"000100\">CAMI MOLINS</option><option value=\"000600\">CARRETERA VENDRELL</option><option value=\"000801\">IDIADA</option><option value=\"000900\">MOLI D'EN SERRA</option><option value=\"000500\">PEDRERES (LES)</option><option value=\"000802\">POLIGONO INDUSTRIAL L'ARBORNAR</option><option value=\"000901\">POLIGONO MOLI D'EN SERRA</option><option value=\"000200\">RESIDENCIAL SANT JORDI</option><option value=\"000300\">SANTA OLIVA</option><option value=\"000000\">SANTA OLIVA</option><option value=\"000902\">TORRENT DEL LLUCH</option><option value=\"000502\">URBANITZACIO MOLI BLANQUILLO</option>"
+    },
+    "141": {
+      "name": "PONTILS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">PONTILS</option><option value=\"000100\">PONTILS</option><option value=\"000200\">SANT MAGI DE ROCAMORA</option><option value=\"000300\">SANTA PERPETUA DE GAIA</option><option value=\"000400\">SEGUER</option><option value=\"000700\">VALLDEPERES</option><option value=\"000500\">VALLESPINOSA</option><option value=\"000600\">VILADEPERDIUS</option>"
+    },
+    "142": {
+      "name": "SARRAL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">MONTBRIO DE LA MARCA</option><option value=\"000200\">SARRAL</option><option value=\"000000\">SARRAL</option><option value=\"000300\">VALLVERD</option>"
+    },
+    "143": {
+      "name": "SAVALLA DEL COMTAT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">BARRI DE SEGURA</option><option value=\"000200\">SAVALLA DEL COMTAT</option><option value=\"000000\">SAVALLA DEL COMTAT</option>"
+    },
+    "144": {
+      "name": "SECUITA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARGILAGA (L')</option><option value=\"000502\">COSTA DE LA TOIA</option><option value=\"000200\">GUNYOLES (LES)</option><option value=\"000300\">SANT ROC</option><option value=\"000400\">SECUITA (LA)</option><option value=\"000000\">SECUITA (LA)</option><option value=\"000500\">VISTABELLA</option>"
+    },
+    "145": {
+      "name": "SELVA DEL CAMP (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PARET-DELGADA</option><option value=\"000200\">SANT PERE</option><option value=\"000300\">SELVA DEL CAMP (LA)</option><option value=\"000000\">SELVA DEL CAMP (LA)</option>"
+    },
+    "146": {
+      "name": "SENAN",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">SENAN</option><option value=\"000000\">SENAN</option>"
+    },
+    "147": {
+      "name": "SOLIVELLA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">SOLIVELLA</option><option value=\"000000\">SOLIVELLA</option>"
+    },
+    "148": {
+      "name": "TARRAGONA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000900\">ARRABASSADA I SAVINOSA</option><option value=\"000904\">BALCO DE TARRAGONA</option><option value=\"000603\">BARRI DE MONGONS</option><option value=\"000100\">BONAVISTA</option><option value=\"000501\">BONSOL</option><option value=\"001500\">BOSCOS DE TARRAGONA (ELS)</option><option value=\"001600\">CALA ROMANA</option><option value=\"001202\">CALA TAMARIT</option><option value=\"001401\">CAMPCLAR</option><option value=\"000200\">CAMPSA</option><option value=\"000300\">CANONJA (LA)</option><option value=\"000502\">COLLS MAJORS</option><option value=\"000902\">COVES LLORITO</option><option value=\"000503\">ENTREPINS</option><option value=\"000401\">ESCORPI</option><option value=\"000400\">FERRAN</option><option value=\"000402\">FERRAN</option><option value=\"000601\">FLORESTA (LA)</option><option value=\"000504\">FLORIMAR</option><option value=\"001403\">GRANJA (LA)</option><option value=\"000201\">ICOMAR</option><option value=\"000505\">LLEVANTINA</option><option value=\"001001\">MAS CORSINI (EL)</option><option value=\"001002\">MAS DEL FRARE (EL)</option><option value=\"001003\">MIRACLE (EL)</option><option value=\"000506\">MONNARS</option><option value=\"000500\">MONNARS</option><option value=\"001004\">MONT SANT PERE SACELADES</option><option value=\"000600\">MONTGONS (ELS)</option><option value=\"001201\">MORA (LA)</option><option value=\"000700\">OLIVA (L')</option><option value=\"001005\">PEDROL (URBANITZACIO)</option><option value=\"000507\">PINARS (ELS)</option><option value=\"000800\">PINEDES (LES)</option><option value=\"001009\">QUATRE GARROFERS (ELS)</option><option value=\"000508\">RESIDENCIAL MONNARS</option><option value=\"000202\">RIU CLAR</option><option value=\"000602\">RIU CLAR-PARC</option><option value=\"001006\">RODOLAT DEL MORO (EL)</option><option value=\"000509\">SANT MARC</option><option value=\"001007\">SANT PERE I SANT PAU</option><option value=\"001000\">SANT PERE I SANT PAU</option><option value=\"001102\">SANT RAMON</option><option value=\"001100\">SANT SALVADOR</option><option value=\"000510\">SOLIMAR</option><option value=\"001200\">TAMARIT</option><option value=\"001300\">TARRAGONA</option><option value=\"000000\">TARRAGONA</option><option value=\"001400\">TORREFORTA</option><option value=\"001404\">TORREFORTA</option><option value=\"000903\">VALL DE L'ARRABASSADA (LA)</option><option value=\"001405\">VERGE DEL PILAR</option><option value=\"000905\">VILETA DE MAR</option><option value=\"001008\">ZONA EDUCACIONAL</option><option value=\"001406\">ZONA EIXAMPLE</option>"
+    },
+    "149": {
+      "name": "TIVENYS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">TIVENYS</option><option value=\"000000\">TIVENYS</option>"
+    },
+    "150": {
+      "name": "TIVISSA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">DARMOS</option><option value=\"000400\">LLABERIA</option><option value=\"000200\">SERRA D'ALMOS (LA)</option><option value=\"000300\">TIVISSA</option><option value=\"000000\">TIVISSA</option>"
+    },
+    "151": {
+      "name": "TORRE DE FONTAUBELLA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">TORRE DE FONTAUBELLA (LA)</option><option value=\"000000\">TORRE DE FONTAUBELLA (LA)</option>"
+    },
+    "152": {
+      "name": "TORRE DE L'ESPANYOL (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">TORRE DE L'ESPANYOL (LA)</option><option value=\"000000\">TORRE DE L'ESPANYOL (LA)</option>"
+    },
+    "153": {
+      "name": "TORREDEMBARRA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000400\">TORREDEMBARRA</option><option value=\"000000\">TORREDEMBARRA</option>"
+    },
+    "154": {
+      "name": "TORROJA DEL PRIORAT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">TORROJA DEL PRIORAT</option><option value=\"000000\">TORROJA DEL PRIORAT</option>"
+    },
+    "155": {
+      "name": "TORTOSA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">BITEM</option><option value=\"000300\">CAMPREDO</option><option value=\"000202\">COLONIA GASOL</option><option value=\"000302\">FONT DE QUINTO (LA)</option><option value=\"000100\">JESUS</option><option value=\"000102\">JESUS</option><option value=\"000303\">RAVAL DEL POM (EL)</option><option value=\"001400\">REGUERS (ELS)</option><option value=\"000203\">SANTA ROSA DE LIMA</option><option value=\"000000\">TORTOSA</option><option value=\"001600\">TORTOSA</option><option value=\"001700\">VINALLOP</option>"
+    },
+    "156": {
+      "name": "ULLDECONA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">CASTELL (EL)</option><option value=\"000600\">MILIANA (LA)</option><option value=\"000200\">SANT JOAN DEL PAS</option><option value=\"000000\">ULLDECONA</option><option value=\"000300\">ULLDECONA</option><option value=\"000400\">VALENTINS (ELS)</option><option value=\"000500\">VENTALLES (LES)</option>"
+    },
+    "157": {
+      "name": "ULLDEMOLINS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ULLDEMOLINS</option><option value=\"000000\">ULLDEMOLINS</option>"
+    },
+    "158": {
+      "name": "VALLCLARA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VALLCLARA</option><option value=\"000000\">VALLCLARA</option>"
+    },
+    "159": {
+      "name": "VALLFOGONA DE RIUCORB",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000102\">BALNEARI DE VALLFOGONA</option><option value=\"000000\">VALLFOGONA DE RIUCORB</option><option value=\"000100\">VALLFOGONA DE RIUCORB</option>"
+    },
+    "160": {
+      "name": "VALLMOLL",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000201\">URBANITZACIO BOGATELL</option><option value=\"000202\">URBANITZACIO CALDERS</option><option value=\"000205\">URBANITZACIO CALDERS-ESCALDES</option><option value=\"000203\">URBANITZACIO LES PLANAS</option><option value=\"000207\">URBANITZACIO PINARES</option><option value=\"000200\">URBANITZACIO VALLMOLL-PARADIS</option><option value=\"000204\">URBANITZACIO VALLMOLL-PARADIS</option><option value=\"000000\">VALLMOLL</option><option value=\"000100\">VALLMOLL</option>"
+    },
+    "161": {
+      "name": "VALLS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000402\">BON SOL</option><option value=\"000100\">FONTSCALDES</option><option value=\"000200\">MASMOLETS</option><option value=\"000300\">PICAMOIXONS</option><option value=\"000403\">PLANA D'EN BERGA</option><option value=\"000404\">SOL I VENT</option><option value=\"000400\">VALLS</option><option value=\"000000\">VALLS</option>"
+    },
+    "162": {
+      "name": "VANDELLOS I L'HOSPITALET DE L'INFANT",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000500\">ALMADRAVA (L')</option><option value=\"000100\">HOSPITALET DE L'INFANT (L')</option><option value=\"000200\">MASBOQUERA</option><option value=\"000300\">MASRIUDOMS</option><option value=\"000400\">VANDELLOS</option><option value=\"000000\">VANDELLOS I L'HOSPITALET DE L'INFANT</option>"
+    },
+    "163": {
+      "name": "VENDRELL (EL)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000200\">BARRI MARITIM DE COMARRUGA</option><option value=\"000100\">BARRI MARITIM DE SANT SALVADOR</option><option value=\"000700\">BARRI MARITIM DEL FRANCAS</option><option value=\"000501\">BARRI MARITIM SECTOR SANATORI</option><option value=\"000300\">ESTACIO SANT VICENÇ DE CALDERS</option><option value=\"000400\">SANT VICENÇ DE CALDERS</option><option value=\"000500\">SECTOR DEL SANATORI</option><option value=\"000000\">VENDRELL (EL)</option><option value=\"000600\">VENDRELL (EL)</option>"
+    },
+    "164": {
+      "name": "VESPELLA DE GAIA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000400\">COMA (LA)</option><option value=\"000100\">MASOS DE VESPELLA</option><option value=\"000300\">SANT MIQUEL</option><option value=\"000200\">VESPELLA</option><option value=\"000000\">VESPELLA DE GAIA</option>"
+    },
+    "165": {
+      "name": "VILABELLA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILABELLA</option><option value=\"000000\">VILABELLA</option>"
+    },
+    "166": {
+      "name": "VILALLONGA DEL CAMP",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILALLONGA DEL CAMP</option><option value=\"000000\">VILALLONGA DEL CAMP</option>"
+    },
+    "167": {
+      "name": "VILANOVA D'ESCORNALBOU",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ARBOSET</option><option value=\"000200\">VILANOVA D'ESCORNALBOU</option><option value=\"000000\">VILANOVA D'ESCORNALBOU</option>"
+    },
+    "168": {
+      "name": "VILANOVA DE PRADES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILANOVA DE PRADES</option><option value=\"000000\">VILANOVA DE PRADES</option>"
+    },
+    "169": {
+      "name": "VILAPLANA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILAPLANA</option><option value=\"000000\">VILAPLANA</option>"
+    },
+    "170": {
+      "name": "VILA-RODONA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000300\">MAS D'EN BOSC</option><option value=\"000100\">VILARDIDA</option><option value=\"000200\">VILA-RODONA</option><option value=\"000000\">VILA-RODONA</option>"
+    },
+    "171": {
+      "name": "VILA-SECA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">PINEDA (LA)</option><option value=\"000200\">PLANA (LA)</option><option value=\"000500\">VILA-SECA</option><option value=\"000000\">VILA-SECA</option>"
+    },
+    "172": {
+      "name": "VILAVERD",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILAVERD</option><option value=\"000000\">VILAVERD</option>"
+    },
+    "173": {
+      "name": "VILELLA ALTA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILELLA ALTA (LA)</option><option value=\"000000\">VILELLA ALTA (LA)</option>"
+    },
+    "174": {
+      "name": "VILELLA BAIXA (LA)",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILELLA BAIXA (LA)</option><option value=\"000000\">VILELLA BAIXA (LA)</option>"
+    },
+    "175": {
+      "name": "VILALBA DELS ARCS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VILALBA DELS ARCS</option><option value=\"000000\">VILALBA DELS ARCS</option>"
+    },
+    "176": {
+      "name": "VIMBODI I POBLET",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000302\">POBLET</option><option value=\"000100\">POBLET</option><option value=\"000200\">RIUDABELLA</option><option value=\"000301\">VIMBODI</option><option value=\"000300\">VIMBODI I POBLET</option><option value=\"000000\">VIMBODI I POBLET</option>"
+    },
+    "177": {
+      "name": "VINEBRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">VINEBRE</option><option value=\"000000\">VINEBRE</option>"
+    },
+    "178": {
+      "name": "VINYOLS I ELS ARCS",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000201\">AREA ESPECIAL CN-340</option><option value=\"000202\">MOLI D'AVALL</option><option value=\"000200\">SANT JOAN DELS ARCS</option><option value=\"000000\">VINYOLS I ELS ARCS</option><option value=\"000100\">VINYOLS I ELS ARCS</option>"
+    },
+    "901": {
+      "name": "DELTEBRE",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">DELTEBRE</option><option value=\"000300\">DELTEBRE</option><option value=\"000302\">RIUMAR</option>"
+    },
+    "902": {
+      "name": "SANT JAUME D'ENVEJA",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000300\">BALADA</option><option value=\"000100\">MUNTELLS (ELS)</option><option value=\"000200\">SANT JAUME D'ENVEJA</option><option value=\"000000\">SANT JAUME D'ENVEJA</option>"
+    },
+    "903": {
+      "name": "CAMARLES",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">CAMARLES</option><option value=\"000100\">CAMARLES</option><option value=\"000200\">LIGALLO DEL GANGUIL</option><option value=\"000300\">LIGALLO DEL ROIG</option>"
+    },
+    "904": {
+      "name": "ALDEA (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000100\">ALDEA (L')</option><option value=\"000000\">ALDEA (L')</option>"
+    },
+    "905": {
+      "name": "SALOU",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000101\">CAP DE SALOU-NOSTRA SENYORA DE NURIA</option><option value=\"000100\">SALOU</option><option value=\"000103\">SALOU</option><option value=\"000000\">SALOU</option><option value=\"000104\">XALETS DE SALOU</option>"
+    },
+    "906": {
+      "name": "AMPOLLA (L')",
+      "resultado": "<option selected=\"selected\"  value=\"\">--</option><option value=\"000000\">AMPOLLA (L')</option><option value=\"000100\">AMPOLLA (L')</option><option value=\"000102\">AMPOLLA MAR</option><option value=\"000104\">CAP-ROIG</option><option value=\"000105\">ROQUE</option>"
+    }
+  }
+}

@@ -61,6 +61,51 @@ export class AirtableClient {
   }
 
   /**
+   * List records from a table, optionally with a filterByFormula.
+   * Auto-paginates fins a `maxRecords` (default 200, suficient per Reus Refugi).
+   */
+  async listRecords(
+    tableId: string,
+    opts: {
+      byFieldId?: boolean;
+      filterByFormula?: string;
+      fields?: string[];
+      maxRecords?: number;
+      pageSize?: number;
+    } = {},
+  ): Promise<AirtableRecord[]> {
+    const byFieldId = opts.byFieldId !== false;
+    const maxRecords = opts.maxRecords ?? 200;
+    const pageSize = opts.pageSize ?? 100;
+
+    const out: AirtableRecord[] = [];
+    let offset: string | undefined;
+    do {
+      const params = new URLSearchParams();
+      if (byFieldId) params.set("returnFieldsByFieldId", "true");
+      if (opts.filterByFormula) params.set("filterByFormula", opts.filterByFormula);
+      if (opts.fields) for (const f of opts.fields) params.append("fields[]", f);
+      params.set("pageSize", String(pageSize));
+      if (offset) params.set("offset", offset);
+
+      const url = `${API_BASE}/${this.baseId}/${tableId}?${params}`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`Airtable listRecords failed: ${resp.status} ${body}`);
+      }
+      const page = (await resp.json()) as { records: AirtableRecord[]; offset?: string };
+      out.push(...page.records);
+      offset = page.offset;
+      if (out.length >= maxRecords) break;
+    } while (offset);
+
+    return out.slice(0, maxRecords);
+  }
+
+  /**
    * Upload a binary attachment directly to a record's attachment field.
    * Uses the content.airtable.com upload endpoint that accepts base64.
    * No external hosting needed.

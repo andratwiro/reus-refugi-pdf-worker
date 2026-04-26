@@ -1,0 +1,27 @@
+{
+  "name": "mercurio-mock",
+  "version": "0.1.0",
+  "description": "Mock server for Mercurio (mercurio.delegaciondelgobierno.gob.es) — used for offline testing of the userscript and Worker payload mapping.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx test/run.ts",
+    "test:e2e": "tsx test/playwright/cascade.test.ts",
+    "build-userscript": "tsx scripts/build-userscript.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.12.7",
+    "playwright": "^1.59.1",
+    "tsx": "^4.7.2",
+    "typescript": "^5.5.0"
+  }
+}

@@ -392,7 +392,9 @@ function emptyReagrupante(): Record<string, string> {
     reaNumeroReagrupante: '', reaPisoReagrupante: '', reaLetraReagrupante: '',
     reaEscaleraReagrupante: '', reaBloqueReagrupante: '', reaKilometroReagrupante: '',
     reaHectometroReagrupante: '',
-    reaCodigoProvinciaReagrupante: '43', // observat al HAR de Marta com a default
+    // Buit (no-dependent). Si fos 43, fariem un canvi a rea provincia que
+    // pot fer rebotar handlers globals de Mercurio i resetejar muni d'ext.
+    reaCodigoProvinciaReagrupante: '',
     reaCodigoMunicipioReagrupante: '', reaCodigoLocalidadReagrupante: '',
     reaCodigoPostalReagrupante: '',
   };

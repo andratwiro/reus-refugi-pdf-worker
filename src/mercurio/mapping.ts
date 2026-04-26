@@ -392,7 +392,10 @@ function emptyReagrupante(): Record<string, string> {
     reaNumeroReagrupante: '', reaPisoReagrupante: '', reaLetraReagrupante: '',
     reaEscaleraReagrupante: '', reaBloqueReagrupante: '', reaKilometroReagrupante: '',
     reaHectometroReagrupante: '',
-    reaCodigoProvinciaReagrupante: '43', // observat al HAR de Marta com a default
+    // Buit (no-dependent). Si fos 43, el userscript dispararia un canvi a la
+    // rea provincia que pot fer rebotar el getMunicipios global de Mercurio
+    // i resetejar el muni d'ext (bug observat 2026-04-26).
+    reaCodigoProvinciaReagrupante: '',
     reaCodigoMunicipioReagrupante: '', reaCodigoLocalidadReagrupante: '',
     reaCodigoPostalReagrupante: '',
   };

@@ -117,6 +117,11 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       ['preCodigoProvinciaPresentador', 'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador'],
     ];
     for (const block of blocks) {
+      const [, muniName, locName] = block;
+      // Skip TOT el bloc si muni+loc buits — un canvi a provincia "vague"
+      // pot disparar handlers globals de Mercurio que reseten ext.
+      if (!payload[muniName] && !payload[locName]) continue;
+
       for (const fieldName of block) {
         const value = payload[fieldName];
         if (!value) continue;
@@ -128,6 +133,29 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         await new Promise(r => setTimeout(r, 200));
       }
     }
+
+    // VERIFICATION PASS: després de tot, esperem 600ms i revisem que
+    // muni/loc d'ext no s'hagin esborrat per side effects (CP handler,
+    // re-renderització, etc.). Si sí, retry.
+    await new Promise(r => setTimeout(r, 600));
+    for (const fieldName of ['extCodigoMunicipio', 'extCodigoLocalidad']) {
+      const wanted = payload[fieldName];
+      if (!wanted) continue;
+      const el = document.querySelector('[name="' + CSS.escape(fieldName) + '"]');
+      if (!el) continue;
+      if (el.value === wanted) continue;
+      // Reset detectat — retry
+      const opt = await waitForOption(fieldName, wanted, 1500);
+      if (!opt) {
+        results.push({ name: fieldName, status: 'cascade_timeout_retry', value: wanted });
+        continue;
+      }
+      el.value = wanted;
+      fireEvents(el, ['change']);
+      results.push({ name: fieldName, status: 'ok_cascade_retry', value: wanted, reason: 'reset detectat, re-setejat' });
+      await new Promise(r => setTimeout(r, 200));
+    }
+
     return results;
   }
 

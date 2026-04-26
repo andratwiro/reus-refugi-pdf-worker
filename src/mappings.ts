@@ -185,8 +185,9 @@ export const FIRMA_BOXES_EX32: FirmaBox[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ANEXO II — Flux express vulnerabilitat
-//  Taula: Informes Vulnerabilitat Express (tblO0n6QksMeXLX3m) a base Venus.
+//  ANEXO II — Flux ràpid vulnerabilitat (persones que només venen a recollir
+//  el certificat i no entren al pipeline complet de Reus Refugi).
+//  Taula: Informes de Vulnerabilitat (tblO0n6QksMeXLX3m) a base Venus.
 //  Plantilla: assets/A2_certificado_vulnerabilidad.pdf.
 //
 //  IMPORTANT: usem FIELD IDs (no noms) per estabilitat.
@@ -194,8 +195,9 @@ export const FIRMA_BOXES_EX32: FirmaBox[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Field IDs de la taula Informes Vulnerabilitat Express.
- * Recollits via Airtable MCP (2026-04-25).
+ * Field IDs de la taula Informes de Vulnerabilitat.
+ * Recollits via Airtable MCP (2026-04-25). Renombrada 2026-04-26: era
+ * "Informes Vulnerabilitat Express" — l'ID es manté.
  */
 export const ANEXO2_AIRTABLE_FIELDS = {
   nom: "fldkwRL1btyKBJIGM",            // "Nom i cognoms" (singleLineText)

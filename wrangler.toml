@@ -25,14 +25,14 @@ enabled = true
 # (O via dashboard: Workers → reus-refugi-pdf-worker → Settings → Variables and Secrets)
 
 [vars]
-# Base Venus (mateixa base per Casos i Informes Vulnerabilitat Express)
+# Base Venus (mateixa base per Casos i Informes de Vulnerabilitat)
 AIRTABLE_BASE_ID = "appWuXncpGWaFTR4M"
 
 # Taula Casos (/generate)
 CASOS_TABLE_ID = "tblaz9eNKzTI7YbM2"
 DOSSIER_FIELD_ID = "fldVBsux4CdQkELmg"
 
-# Taula Informes Vulnerabilitat Express (/anexo2)
+# Taula Informes de Vulnerabilitat (/anexo2)
 INFORMES_VULN_TABLE_ID = "tblO0n6QksMeXLX3m"
 INFORMES_VULN_PDF_FIELD = "fldbSmX0DxlCdSS2O"          # "Informe generat" (multipleAttachments)
 INFORMES_VULN_GENERATED_AT_FIELD = "fld3kRIFhpmVNDBFO" # "Generat el" (dateTime Europe/Madrid)

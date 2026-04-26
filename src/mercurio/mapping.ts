@@ -141,9 +141,12 @@ function isoToEs(iso: string | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
-/** Get field with fallback to suffixed name "X (Mercurio)" */
+/** Get field, preferint la versió sufixada "X (Mercurio)" si existeix.
+ *  Cas Nacionalitat / País naixement / Tipus via: Airtable té DOS camps —
+ *  l'antic (text "COLOMBIA") i el nou (codi "COLOMBIA (212)"). Volem el nou.
+ *  Per als camps que no tenen sufix, troba el plain igualment. */
 function f(rec: AirtableCase, name: string): any {
-  return rec.fields[name] ?? rec.fields[`${name} (Mercurio)`] ?? '';
+  return rec.fields[`${name} (Mercurio)`] ?? rec.fields[name] ?? '';
 }
 
 /** First non-empty Airtable string value: nacionalitat or other singleSelect.
@@ -343,7 +346,8 @@ function mapParentesco(p: string): string {
 
 function buildReagrupante(refRec: AirtableCase): Record<string, string> {
   const f = (n: string) => {
-    const v = refRec.fields[n] ?? refRec.fields[`${n} (Mercurio)`] ?? '';
+    // Prefer (Mercurio) suffix — same priority com a la f() principal
+    const v = refRec.fields[`${n} (Mercurio)`] ?? refRec.fields[n] ?? '';
     return typeof v === 'string' ? v : '';
   };
   return {

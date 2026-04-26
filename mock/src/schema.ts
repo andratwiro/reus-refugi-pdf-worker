@@ -24,7 +24,7 @@ import {
   SEXO, ESTADO_CIVIL, TIPO_DOC, VINCULO_REP, TIPO_VIA, CODIGO_PAIS,
   CODIGO_PROVINCIA, VIA_ACCESO_NEW, TIPO_PERMISO_NEW, COD_PARENTESCO,
   MUNICIPI_TARRAGONA, LOCALITATS_PER_MUNICIPI,
-} from './catalogs.js';
+} from '../../src/mercurio/catalogs.js';
 
 export type FieldKind =
   | { type: 'constant'; value: string }

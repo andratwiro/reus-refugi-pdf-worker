@@ -12,10 +12,11 @@
  * Si no ho està, falla amb missatge clar.
  */
 
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
-import { airtableToMercurio, type AirtableCase } from '../src/lib/mapping.js';
+// Importa el mapper del Worker (font canònica). El mock NO duplica codi.
+import { airtableToMercurio, type AirtableCase } from '../../src/mercurio/mapping.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = resolve(__dirname, 'fixtures');
@@ -132,6 +133,7 @@ async function main() {
   }
 
   const md = renderMarkdown(results);
+  mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(join(OUTPUT_DIR, 'REPORT.md'), md);
   console.log(`\n📄 Report: ${join(OUTPUT_DIR, 'REPORT.md')}\n`);
 

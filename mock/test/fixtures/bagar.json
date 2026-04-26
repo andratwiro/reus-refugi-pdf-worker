@@ -1,0 +1,28 @@
+{
+  "_comment": "Snapshot real del cas BAGAR (recem2HGSatajSiBE) - 2026-04-26. Cas amb dades incompletes (sense domicili) - test de robustesa.",
+  "id": "recem2HGSatajSiBE",
+  "fields": {
+    "ID Cas": "RR-002-BAGAR--CAMAR",
+    "Estat": "En preparació",
+    "Voluntari responsable": ["Marta"],
+    "Via legal": "DA 20ª – Sol·licitant PI",
+    "Nom": "Bagar ",
+    "1r cognom": "Camar",
+    "Sexe": "H (home)",
+    "Data de naixement": "2006-01-01",
+    "Menor d'edat": false,
+    "Lloc de naixement": "Kankan",
+    "Nacionalitat (Mercurio)": "GUINEA CONAKRY (325)",
+    "Estat civil": "Solter/a (S)",
+    "Núm. passaport": "O01167389",
+    "NIE": "Z1838997Z",
+    "Nom del pare": "Mamady",
+    "Nom de la mare": "Fanta",
+    "Telèfon": "603219622",
+    "Email": "",
+    "País naixement (Mercurio)": "GUINEA CONAKRY (325)",
+    "Compleix 5 mesos ininterromputs": true,
+    "Data aprox. arribada": "2024-03-20",
+    "N.º expedient asil": "242806260830"
+  }
+}

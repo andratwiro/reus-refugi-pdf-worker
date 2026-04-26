@@ -1,0 +1,228 @@
+/**
+ * Userscript de PRODUCCIÓ — Reus Refugi Mercurio Auto-Fill.
+ *
+ * Diferent del MVP (mock/userscript/template.user.js) en què:
+ *   - No té payloads hardcoded; cerca i llegeix d'Airtable via Worker
+ *   - @updateURL apunta al Worker per auto-update via Tampermonkey
+ *   - Inclou caixa de cerca per nom/cognom/passaport
+ *
+ * Es serveix des de la ruta `GET /mercurio.user.js` del Worker, que
+ * substitueix els placeholders `__WORKER_URL__` i `__SHARED_SECRET__`
+ * a runtime amb la URL pública del Worker i el secret.
+ *
+ * Nota seguretat: el SHARED_SECRET viatja embedded al userscript.
+ * El nostre threat model: voluntaris RECEX de confiança + audit logs
+ * Cloudflare. Si això canvia, considerar OAuth per voluntari.
+ */
+export const USERSCRIPT_TEMPLATE = `// ==UserScript==
+// @name         Reus Refugi — Mercurio Auto-Fill
+// @namespace    https://reusrefugi.cat
+// @version      __VERSION__
+// @description  Cerca un cas d'Airtable Venus i omple el form EX-31/EX-32 de Mercurio amb 1 click. NO submiteja.
+// @author       Reus Refugi
+// @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX31.html*
+// @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX32.html*
+// @updateURL    __WORKER_URL__/mercurio.user.js
+// @downloadURL  __WORKER_URL__/mercurio.user.js
+// @grant        none
+// @run-at       document-end
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  const WORKER_URL = '__WORKER_URL__';
+  const SHARED_SECRET = '__SHARED_SECRET__';
+
+  // ─── Skip lists ─────────────────────────────────────────────────────
+  const CASCADE_FIELDS = new Set([
+    'extCodigoProvincia', 'extCodigoMunicipio', 'extCodigoLocalidad',
+    'reaCodigoProvinciaReagrupante', 'reaCodigoMunicipioReagrupante', 'reaCodigoLocalidadReagrupante',
+    'preCodigoProvinciaPresentador', 'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador',
+  ]);
+  const SKIP_FIELDS = new Set([
+    'reaCodigoMunicipioReagrupante', 'reaCodigoLocalidadReagrupante',
+    'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador',
+    'preNombrePresentador', 'preTipodocumentoPresentador', 'preNiePresentador',
+    'notNombreNotificacion', 'notTipodocumentoNotificacion', 'notNieNotificacion',
+    '_chkDecla1', '_chkDecla2', '_chkDecla3',
+    '_chkIncapacidad', '_chkConsientoConsultaDocumentos', '_chkConsentimientoNotificacion',
+  ]);
+
+  // ─── Worker fetch helpers ───────────────────────────────────────────
+  async function workerGet(path) {
+    const r = await fetch(WORKER_URL + path, {
+      headers: { 'Authorization': 'Bearer ' + SHARED_SECRET },
+    });
+    if (!r.ok) throw new Error(\`\${r.status} \${await r.text()}\`);
+    return r.json();
+  }
+
+  // ─── Form fill primitives ───────────────────────────────────────────
+  function fireEvents(el, types) {
+    for (const t of types) el.dispatchEvent(new Event(t, { bubbles: true }));
+    if (window.jQuery) {
+      try { for (const t of types) window.jQuery(el).trigger(t); } catch (e) {}
+    }
+  }
+
+  function setField(name, value) {
+    if (SKIP_FIELDS.has(name)) return { name, status: 'skipped' };
+    const els = document.querySelectorAll('[name="' + CSS.escape(name) + '"]');
+    if (els.length === 0) return { name, status: 'not_found', value };
+    const el = els[0];
+    const tag = el.tagName.toLowerCase();
+    const type = (el.type || '').toLowerCase();
+    try {
+      if (tag === 'select') {
+        const opt = [...el.options].find(o => o.value === value);
+        if (!opt) return { name, status: 'invalid_option', value };
+        el.value = value;
+        fireEvents(el, ['change']);
+        return { name, status: 'ok', value };
+      }
+      if (type === 'checkbox') {
+        const want = value === 'true' || value === 'on';
+        if (el.checked !== want) { el.checked = want; fireEvents(el, ['change']); }
+        return { name, status: 'ok', value: want ? 'checked' : 'unchecked' };
+      }
+      if (type === 'radio') {
+        for (const r of els) if (r.value === value) { r.checked = true; fireEvents(r, ['change']); break; }
+        return { name, status: 'ok', value };
+      }
+      el.value = value;
+      fireEvents(el, ['input', 'change']);
+      return { name, status: 'ok', value };
+    } catch (e) { return { name, status: 'error', value, error: String(e) }; }
+  }
+
+  async function waitForOption(name, value, timeoutMs = 3000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const el = document.querySelector('[name="' + CSS.escape(name) + '"]');
+      if (el && el.options) for (const o of el.options) if (o.value === value) return el;
+      await new Promise(r => setTimeout(r, 80));
+    }
+    return null;
+  }
+
+  async function fillCascade(payload) {
+    const results = [];
+    const blocks = [
+      ['extCodigoProvincia', 'extCodigoMunicipio', 'extCodigoLocalidad'],
+      ['reaCodigoProvinciaReagrupante', 'reaCodigoMunicipioReagrupante', 'reaCodigoLocalidadReagrupante'],
+      ['preCodigoProvinciaPresentador', 'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador'],
+    ];
+    for (const block of blocks) {
+      for (const fieldName of block) {
+        const value = payload[fieldName];
+        if (!value) continue;
+        const el = await waitForOption(fieldName, value);
+        if (!el) { results.push({ name: fieldName, status: 'cascade_timeout', value }); continue; }
+        el.value = value;
+        fireEvents(el, ['change']);
+        results.push({ name: fieldName, status: 'ok_cascade', value });
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    return results;
+  }
+
+  async function fillAll(payload) {
+    const results = [];
+    if (payload.datosForAut) {
+      results.push(setField('datosForAut', String(payload.datosForAut)));
+      await new Promise(r => setTimeout(r, 350));
+    }
+    results.push(...await fillCascade(payload));
+    for (const [name, value] of Object.entries(payload)) {
+      if (name === 'datosForAut') continue;
+      if (CASCADE_FIELDS.has(name)) continue;
+      results.push(setField(name, String(value)));
+    }
+    return results;
+  }
+
+  // ─── UI ─────────────────────────────────────────────────────────────
+  function injectPanel() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#fff;border:2px solid #2563eb;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-family:system-ui,sans-serif;font-size:13px;width:280px';
+    wrap.innerHTML = \`
+      <div style="font-weight:600;color:#2563eb;margin-bottom:8px">🚀 Reus Refugi — Auto-Fill</div>
+      <input id="rr-search" type="text" placeholder="Cerca cas (nom o cognom)…" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ccc;border-radius:4px;margin-bottom:6px">
+      <div id="rr-results" style="max-height:240px;overflow:auto"></div>
+      <div id="rr-status" style="margin-top:8px;font-size:11px;color:#777;max-height:200px;overflow:auto"></div>
+    \`;
+    document.body.appendChild(wrap);
+
+    const search = wrap.querySelector('#rr-search');
+    const results = wrap.querySelector('#rr-results');
+    const status = wrap.querySelector('#rr-status');
+
+    let timer = null;
+    search.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => doSearch(search.value, results, status), 250);
+    });
+    // Cerca inicial buida = 5 últims casos
+    doSearch('', results, status);
+  }
+
+  async function doSearch(q, container, status) {
+    container.innerHTML = '<em style="font-size:11px;color:#999">Cercant…</em>';
+    try {
+      const data = await workerGet('/mercurio/cases?q=' + encodeURIComponent(q || ''));
+      const cases = data.cases || [];
+      if (cases.length === 0) {
+        container.innerHTML = '<em style="font-size:11px;color:#999">Cap match.</em>';
+        return;
+      }
+      container.innerHTML = '';
+      for (const c of cases) {
+        const item = document.createElement('button');
+        item.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;margin-bottom:3px;border:1px solid #e5e7eb;background:#f9fafb;border-radius:4px;cursor:pointer;font-size:12px';
+        item.innerHTML = \`<strong>\${escapeHtml(c.nom)} \${escapeHtml(c.cognom1 || '')}</strong> · <span style="color:#666">\${escapeHtml(c.viaLegal || '?')}</span><br><span style="color:#999;font-size:10px">\${escapeHtml(c.idCas)} · \${c.formulario}</span>\`;
+        item.addEventListener('click', () => fillCase(c, status));
+        container.appendChild(item);
+      }
+    } catch (e) {
+      container.innerHTML = '<span style="color:#c00;font-size:11px">Error: ' + escapeHtml(String(e)) + '</span>';
+    }
+  }
+
+  async function fillCase(c, statusDiv) {
+    // Verifica form correcte
+    const onForm = location.pathname.includes('EX31') ? 'EX31'
+                 : location.pathname.includes('EX32') ? 'EX32' : '?';
+    if (c.formulario !== onForm) {
+      statusDiv.innerHTML = \`<strong style="color:#c00">⚠️ Cas és per \${c.formulario}, ets a \${onForm}.</strong><br>Tornar enrere i triar \${c.formulario} al desplegable.\`;
+      return;
+    }
+    statusDiv.innerHTML = '<em>Carregant payload…</em>';
+    try {
+      const data = await workerGet('/mercurio/payload?caso=' + encodeURIComponent(c.id));
+      statusDiv.innerHTML = '<em>Omplint ' + escapeHtml(c.idCas) + '… (cascades AJAX 1-2s)</em>';
+      const results = await fillAll(data.payload);
+      const ok = results.filter(r => r.status === 'ok' || r.status === 'ok_cascade').length;
+      const skipped = results.filter(r => r.status === 'skipped').length;
+      const issues = results.filter(r => !['ok', 'ok_cascade', 'skipped'].includes(r.status));
+      let html = '<strong>' + ok + ' OK</strong> · ' + skipped + ' skip · ' + issues.length + ' issues';
+      if (issues.length) {
+        html += '<details style="margin-top:6px"><summary>Detall</summary><pre style="font-size:10px;white-space:pre-wrap;margin:4px 0 0">';
+        for (const r of issues) html += r.name + ': ' + r.status + (r.value ? ' ("' + r.value + '")' : '') + '\\n';
+        html += '</pre></details>';
+      }
+      statusDiv.innerHTML = html;
+      console.log('[Reus Refugi] fill results:', results);
+    } catch (e) {
+      statusDiv.innerHTML = '<span style="color:#c00">Error: ' + escapeHtml(String(e)) + '</span>';
+    }
+  }
+
+  function escapeHtml(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+  // ─── Boot ───────────────────────────────────────────────────────────
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectPanel);
+  else injectPanel();
+})();
+`;

@@ -12,6 +12,10 @@ import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
 import { CASOS } from "./mappings";
+import { airtableToMercurio, getFormulario, type AirtableCase } from "./mercurio/mapping";
+import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
+
+const USERSCRIPT_VERSION = "1.0.0";
 
 export interface Env {
   // Secrets
@@ -67,6 +71,20 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/gmail-draft") {
       return handleGmailDraft(request, env);
+    }
+
+    // ─── Mercurio routes ────────────────────────────────────────
+    if (request.method === "OPTIONS" && url.pathname.startsWith("/mercurio")) {
+      return corsPreflight(request);
+    }
+    if (request.method === "GET" && url.pathname === "/mercurio.user.js") {
+      return handleUserscript(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/mercurio/cases") {
+      return handleMercurioCases(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/mercurio/payload") {
+      return handleMercurioPayload(request, env);
     }
 
     return json({ error: "Not found" }, 404);
@@ -295,6 +313,155 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ─── Mercurio handlers ──────────────────────────────────────────────────────
+
+const ALLOWED_CORS_ORIGINS = [
+  "https://mercurio.delegaciondelgobierno.gob.es",
+  "http://localhost:3001",
+];
+
+function corsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") ?? "";
+  const allow = ALLOWED_CORS_ORIGINS.includes(origin) ? origin : ALLOWED_CORS_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+}
+
+function corsPreflight(request: Request): Response {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
+}
+
+function corsJson(data: unknown, request: Request, status = 200): Response {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders(request) },
+  });
+}
+
+/**
+ * GET /mercurio.user.js — serveix el userscript de producció amb @updateURL
+ * apuntant a si mateix. Tampermonkey detectarà actualitzacions automàtiques.
+ *
+ * Aquesta ruta NO requereix auth — qualsevol pot baixar el userscript. El que
+ * requereix auth són les crides /mercurio/cases i /mercurio/payload (el secret
+ * va embedded al userscript).
+ */
+function handleUserscript(request: Request, env: Env): Response {
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const body = USERSCRIPT_TEMPLATE
+    .replaceAll("__WORKER_URL__", baseUrl)
+    .replaceAll("__VERSION__", USERSCRIPT_VERSION)
+    // SHARED_SECRET embedded — voluntari instal·la i ja funciona. Threat model:
+    // RECEX entity de confiança + Cloudflare audit logs.
+    .replaceAll("__SHARED_SECRET__", env.SHARED_SECRET);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=300",  // 5min — Tampermonkey re-comprova diàriament igualment
+    },
+  });
+}
+
+/**
+ * GET /mercurio/cases?q=text — cerca casos a la taula Casos d'Airtable.
+ * Cerca per Nom, 1r cognom, 2n cognom, ID Cas (case-insensitive substring).
+ */
+async function handleMercurioCases(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+
+  const at = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
+  // Llegim per NAMES (no IDs) perquè el mapper compartit treballa per nom.
+  const records = await at.listRecords(env.CASOS_TABLE_ID, {
+    byFieldId: false,
+    maxRecords: 200,
+  });
+
+  const matches = [];
+  for (const r of records) {
+    const f = r.fields as Record<string, any>;
+    const nom = String(f["Nom"] ?? "").trim();
+    const cog1 = String(f["1r cognom"] ?? "").trim();
+    const cog2 = String(f["2n cognom"] ?? "").trim();
+    const idCas = String(f["ID Cas"] ?? "");
+    const passaport = String(f["Núm. passaport"] ?? "");
+    const haystack = `${nom} ${cog1} ${cog2} ${idCas} ${passaport}`.toLowerCase();
+    if (q && !haystack.includes(q)) continue;
+
+    const viaLegalRaw = f["Via legal"];
+    const viaLegal = typeof viaLegalRaw === "string"
+      ? viaLegalRaw
+      : (viaLegalRaw && typeof viaLegalRaw === "object" && "name" in viaLegalRaw)
+        ? String((viaLegalRaw as { name: string }).name)
+        : "";
+
+    const formulario = getFormulario({ id: r.id, fields: { "Via legal": viaLegal } });
+    matches.push({
+      id: r.id,
+      idCas,
+      nom,
+      cognom1: cog1,
+      cognom2: cog2,
+      viaLegal,
+      formulario,
+    });
+  }
+
+  // Ordena per nom asc i limita a 30
+  matches.sort((a, b) => (a.cognom1 + a.nom).localeCompare(b.cognom1 + b.nom));
+  return corsJson({ q, total: matches.length, cases: matches.slice(0, 30) }, request);
+}
+
+/**
+ * GET /mercurio/payload?caso=recXXX — retorna el payload de 144 camps mapejat.
+ * Si el cas és un dependent (té "Referent familiar"), llegeix també el
+ * referent per construir els camps `rea*`.
+ */
+async function handleMercurioPayload(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+  const url = new URL(request.url);
+  const recordId = url.searchParams.get("caso");
+  if (!recordId || !/^rec[A-Za-z0-9]{14}$/.test(recordId)) {
+    return corsJson({ error: "missing or invalid 'caso' param" }, request, 400);
+  }
+
+  const at = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
+  // Llegim per NAMES (mapper compartit treballa per nom)
+  const rec = await at.getRecord(env.CASOS_TABLE_ID, recordId, { byFieldId: false });
+  const recAsCase: AirtableCase = { id: rec.id, fields: rec.fields as any };
+
+  // Si té "Referent familiar" (link), llegim el referent per als camps rea*
+  let refRec: AirtableCase | undefined;
+  const referentLinks = (rec.fields as any)["Referent familiar"] as Array<{ id: string }> | string[] | undefined;
+  if (Array.isArray(referentLinks) && referentLinks.length > 0) {
+    const refId = typeof referentLinks[0] === "string"
+      ? (referentLinks[0] as string)
+      : (referentLinks[0] as { id: string }).id;
+    if (refId && /^rec[A-Za-z0-9]{14}$/.test(refId)) {
+      const r = await at.getRecord(env.CASOS_TABLE_ID, refId, { byFieldId: false });
+      refRec = { id: r.id, fields: r.fields as any };
+    }
+  }
+
+  const payload = airtableToMercurio(recAsCase, undefined, refRec);
+  const formulario = getFormulario(recAsCase);
+
+  return corsJson({
+    caso: recordId,
+    idCas: (rec.fields as any)["ID Cas"],
+    formulario,
+    payload,
+  }, request);
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function checkAuth(request: Request, env: Env): boolean {
@@ -302,8 +469,11 @@ function checkAuth(request: Request, env: Env): boolean {
   return auth === `Bearer ${env.SHARED_SECRET}`;
 }
 
-function unauthorized(): Response {
-  return json({ error: "Unauthorized" }, 401);
+function unauthorized(extraHeaders: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+  });
 }
 
 function json(data: unknown, status = 200): Response {

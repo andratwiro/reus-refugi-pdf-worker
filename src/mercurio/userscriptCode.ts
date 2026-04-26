@@ -87,7 +87,10 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         return { name, status: 'ok', value: want ? 'checked' : 'unchecked' };
       }
       if (type === 'radio') {
-        for (const r of els) if (r.value === value) { r.checked = true; fireEvents(r, ['change']); break; }
+        // Per radios, native click() és més segur: dispara el handler complet
+        // de Mercurio (que p.ex. mostra inputs dinàmics com expAsilo). 'change'
+        // event sol no els activa.
+        for (const r of els) if (r.value === value) { r.click(); break; }
         return { name, status: 'ok', value };
       }
       el.value = value;
@@ -128,18 +131,35 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     return results;
   }
 
+  /**
+   * Ordre de fillament:
+   *   1. datosForAut (radio) → click() per a que Mercurio renderitzi els
+   *      camps dinàmics (p.ex. expAsilo per a EX-31 PI). Espera 400ms.
+   *   2. Tots els camps simples (text/checkbox/select estàtic) ABANS de
+   *      les cascades, perquè Mercurio té handlers (p.ex. el del CP) que
+   *      poden re-derivar municipi/localitat. Si setem CP ABANS, el handler
+   *      ja s'ha disparat quan triem muni manualment.
+   *   3. Cascades adreça (provincia → municipi → localitat) AL FINAL.
+   */
   async function fillAll(payload) {
     const results = [];
+
+    // Phase 1: radio supuesto + click()
     if (payload.datosForAut) {
       results.push(setField('datosForAut', String(payload.datosForAut)));
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 400));
     }
-    results.push(...await fillCascade(payload));
+
+    // Phase 2: tot menys cascades (incl. CP, expAsilo, etc.)
     for (const [name, value] of Object.entries(payload)) {
       if (name === 'datosForAut') continue;
       if (CASCADE_FIELDS.has(name)) continue;
       results.push(setField(name, String(value)));
     }
+
+    // Phase 3: cascades adreça AL FINAL (perquè handlers anteriors no les resetegin)
+    results.push(...await fillCascade(payload));
+
     return results;
   }
 

@@ -85,12 +85,10 @@
         return { name, status: 'ok', value: wantChecked ? 'checked' : 'unchecked' };
       }
       if (type === 'radio') {
+        // Per radios, native click() dispara el handler complet (que pot
+        // mostrar inputs dinàmics com expAsilo). 'change' sol no és suficient.
         for (const r of els) {
-          if (r.value === value) {
-            r.checked = true;
-            fireEvents(r, ['change']);  // NO click — toggle bug
-            break;
-          }
+          if (r.value === value) { r.click(); break; }
         }
         return { name, status: 'ok', value };
       }
@@ -154,32 +152,22 @@
 
   /**
    * Omple en 3 fases:
-   *   1. Radio supuesto (datosForAut) → injecta camps dinàmics (expAsilo)
-   *   2. Cascades adreça (provincia → municipi → localitat) amb await AJAX
-   *   3. La resta dels camps (text, checkboxes, selects estàtics)
-   *
-   * NOTA: ext*Representante es deixa BUIT — pendent flow RECEX d'entitat.
+   *   1. Radio supuesto (datosForAut) → click() injecta camps dinàmics (expAsilo)
+   *   2. Tots els camps simples (incl. CP, expAsilo) ABANS de les cascades
+   *   3. Cascades adreça AL FINAL (perquè CP handler no resetegi munis)
    */
   async function fillAll(payload) {
     const results = [];
-
-    // FASE 1: radio supuesto
     if (payload.datosForAut) {
       results.push(setField('datosForAut', String(payload.datosForAut)));
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 400));
     }
-
-    // FASE 2: cascades adreça (en paral·lel amb la fase 3 no — primer cascades
-    // perquè poden trigar i no volem que la rest setting interfereixi)
-    const cascadeResults = await fillCascade(payload);
-    results.push(...cascadeResults);
-
-    // FASE 3: omple la resta
     for (const [name, value] of Object.entries(payload)) {
       if (name === 'datosForAut') continue;
-      if (CASCADE_FIELDS.has(name)) continue;  // ja fet a fase 2
+      if (CASCADE_FIELDS.has(name)) continue;
       results.push(setField(name, String(value)));
     }
+    results.push(...await fillCascade(payload));
     return results;
   }
 

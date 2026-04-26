@@ -3,4 +3,3 @@ node_modules/
 .wrangler/
 .DS_Store
 mock/test/output/
-mock/userscript/dist/

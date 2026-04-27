@@ -232,10 +232,9 @@ export function airtableToMercurio(
     idOpcionAutorizacion: viaCfg.idOpcionAutorizacion,
     codOpcionAutorizacion: viaCfg.codOpcionAutorizacion,
     datosForAut: viaCfg.idOpcionAutorizacion,
-    descActividadDecla3: activitatLaboral,
     // Camp dinàmic — només apareix al DOM si datosForAut=284 (DA 20ª PI).
-    // El userscript farà fillament en 2 fases: primer datosForAut, esperar
-    // injecció DOM, llavors expAsilo.
+    // Es resol via Phase 1 del userscript (datosForAut + 400ms wait abans
+    // d'iterar la resta de camps).
     expAsilo: fStr(rec, 'N.º expedient asil'),
 
     // ─── Decla checkboxes ───────────────────────────────────
@@ -245,6 +244,12 @@ export function airtableToMercurio(
     _chkDecla2: 'on',
     ...(chkDecla3 ? { chkDecla3 } : {}),
     _chkDecla3: 'on',
+    // Camp dinàmic — només apareix al DOM si chkDecla3 està marcat.
+    // Va DESPRÉS del checkbox a la insertion order perquè el userscript
+    // itera Object.entries seqüencialment i Mercurio renderitza l'input
+    // al change handler del checkbox. Si el handler fos async i no
+    // arribéssim a temps, la Phase 2-bis del userscript fa retry a 300ms.
+    descActividadDecla3: activitatLaboral,
     docsAutoriza: '',
     docsDeniega: '',
     _chkConsientoConsultaDocumentos: 'on',

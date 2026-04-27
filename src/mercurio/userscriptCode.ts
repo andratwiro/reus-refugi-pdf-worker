@@ -190,6 +190,28 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       results.push(setField(name, String(value)));
     }
 
+    // Phase 2-bis: retry de camps not_found. Alguns inputs es renderitzen
+    // condicionalment després d'un canvi de checkbox/radio (p.ex.
+    // descActividadDecla3 només apareix si chkDecla3 marcat). Si el
+    // handler de Mercurio és async i la primera iteració no troba el DOM,
+    // esperem 300ms i fem un re-fill només per als not_found.
+    const notFoundIdx = [];
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === 'not_found') notFoundIdx.push(i);
+    }
+    if (notFoundIdx.length > 0) {
+      await new Promise(r => setTimeout(r, 300));
+      for (const idx of notFoundIdx) {
+        const orig = results[idx];
+        const v = payload[orig.name];
+        if (!v) continue;
+        const retry = setField(orig.name, String(v));
+        if (retry.status === 'ok') {
+          results[idx] = { name: orig.name, status: 'ok_retry', value: retry.value };
+        }
+      }
+    }
+
     // Phase 3: cascades adreça AL FINAL (perquè handlers anteriors no les resetegin)
     results.push(...await fillCascade(payload));
 
@@ -785,9 +807,10 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     try {
       const data = await workerGet('/mercurio/payload?caso=' + encodeURIComponent(c.id));
       const results = await fillAll(data.payload);
-      const ok = results.filter(r => r.status === 'ok' || r.status === 'ok_cascade' || r.status === 'ok_cascade_retry').length;
+      const okStatuses = new Set(['ok', 'ok_cascade', 'ok_cascade_retry', 'ok_retry']);
+      const ok = results.filter(r => okStatuses.has(r.status)).length;
       const skipped = results.filter(r => r.status === 'skipped').length;
-      const issues = results.filter(r => !['ok', 'ok_cascade', 'ok_cascade_retry', 'skipped'].includes(r.status));
+      const issues = results.filter(r => !okStatuses.has(r.status) && r.status !== 'skipped');
 
       // Estat final: DONE si 0 issues, ERROR altrament.
       setRowState(row, issues.length === 0 ? 'done' : 'error');

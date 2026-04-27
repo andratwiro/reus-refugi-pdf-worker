@@ -203,6 +203,8 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   const ICON_SEARCH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
   const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
   const ICON_ARROW = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+  const ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
+  const ICON_ALERT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
 
   // ─── Styles (scoped) ───────────────────────────────────────────────
   // Tot prefixat .venus-* + reset agressiu per aïllar de l'CSS legacy de
@@ -294,6 +296,9 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         max-height: 360px;
         overflow-y: auto;
       }
+
+      /* Row base — idle. 1.5px transparent border reserva l'espai per evitar
+       * layout-shift quan saltem a estats colored (filling/done/error). */
       .venus-modal .venus-row {
         display: flex;
         align-items: center;
@@ -301,20 +306,57 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         padding: 14px 16px;
         cursor: pointer;
         background: #FFFFFF;
-        border: none;
+        border: 1.5px solid transparent;
         width: 100%;
         text-align: left;
         font-family: inherit;
         font-size: 14px;
         color: inherit;
-        transition: background 100ms;
+        transition: background 100ms, border-color 100ms;
       }
+      .venus-modal .venus-row + .venus-row { border-top-color: #F0ECF5; }
       .venus-modal .venus-row:hover,
-      .venus-modal .venus-row:focus-visible {
+      .venus-modal .venus-row:focus,
+      .venus-modal .venus-row:active {
         background: #F4EFFB;
         outline: none;
       }
-      .venus-modal .venus-row + .venus-row { border-top: 1px solid #F0ECF5; }
+      .venus-modal .venus-row:focus-visible {
+        background: #F4EFFB;
+        border-color: #7C3AED;
+        outline: none;
+      }
+
+      /* Row state overrides — declarats després perquè la cadena hover/focus
+       * no els sobreescrigui. Tot l'estat manté la mateixa paleta. */
+      .venus-modal .venus-row[data-state="filling"],
+      .venus-modal .venus-row[data-state="filling"]:hover,
+      .venus-modal .venus-row[data-state="filling"]:focus,
+      .venus-modal .venus-row[data-state="filling"]:active,
+      .venus-modal .venus-row[data-state="filling"]:focus-visible {
+        background: #F0EAFB;
+        border-color: #7C3AED;
+      }
+      .venus-modal .venus-row[data-state="done"],
+      .venus-modal .venus-row[data-state="done"]:hover,
+      .venus-modal .venus-row[data-state="done"]:focus,
+      .venus-modal .venus-row[data-state="done"]:active,
+      .venus-modal .venus-row[data-state="done"]:focus-visible {
+        background: #E8F5EE;
+        border-color: #0E7A45;
+      }
+      .venus-modal .venus-row[data-state="done"] .venus-name { color: #0E3A22; }
+      .venus-modal .venus-row[data-state="done"] .venus-meta { color: #3D6B52; }
+      .venus-modal .venus-row[data-state="error"],
+      .venus-modal .venus-row[data-state="error"]:hover,
+      .venus-modal .venus-row[data-state="error"]:focus,
+      .venus-modal .venus-row[data-state="error"]:active,
+      .venus-modal .venus-row[data-state="error"]:focus-visible {
+        background: #FCEBEA;
+        border-color: #B42318;
+      }
+      .venus-modal .venus-row[data-state="error"] .venus-name { color: #5A1410; }
+      .venus-modal .venus-row[data-state="error"] .venus-meta { color: #8A3A33; }
 
       .venus-modal .venus-badge {
         flex: 0 0 auto;
@@ -358,14 +400,53 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       .venus-modal .venus-id { font-variant-numeric: tabular-nums; }
       .venus-modal .venus-dot { margin: 0 6px; color: #B8B0C7; }
 
-      .venus-modal .venus-row-arrow {
+      /* Row tail — slot dret (hint hover/focus, spinner, check, alert).
+       * Color base #6B607E gris; per estats canvia a la color del border. */
+      .venus-modal .venus-row-tail {
         flex: 0 0 auto;
-        color: #6B607E;
-        opacity: 0;
-        transition: opacity 100ms;
         display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        color: #6B607E;
+        min-height: 18px;
       }
-      .venus-modal .venus-row:hover .venus-row-arrow { opacity: 1; }
+      .venus-modal .venus-row[data-state="filling"] .venus-row-tail { color: #7C3AED; }
+      .venus-modal .venus-row[data-state="done"] .venus-row-tail { color: #0E7A45; }
+      .venus-modal .venus-row[data-state="error"] .venus-row-tail { color: #B42318; }
+
+      .venus-modal .venus-row-hint-hover,
+      .venus-modal .venus-row-hint-focus {
+        display: none;
+        align-items: center;
+      }
+      .venus-modal .venus-row[data-state="idle"]:hover .venus-row-hint-hover {
+        display: flex;
+        color: #6B607E;
+      }
+      .venus-modal .venus-row[data-state="idle"]:focus-visible .venus-row-hint-hover {
+        display: none;
+      }
+      .venus-modal .venus-row[data-state="idle"]:focus-visible .venus-row-hint-focus {
+        display: flex;
+        color: #7C3AED;
+        font-weight: 600;
+      }
+
+      /* Spinner */
+      .venus-modal .venus-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(124, 58, 237, 0.25);
+        border-top-color: #7C3AED;
+        border-radius: 50%;
+        animation: venus-spin 0.8s linear infinite;
+        display: inline-block;
+        flex: 0 0 auto;
+      }
+      @keyframes venus-spin { to { transform: rotate(360deg); } }
 
       .venus-modal .venus-empty {
         padding: 24px 16px;
@@ -374,30 +455,87 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         color: #6B607E;
       }
 
+      /* Status (progress block / info card / errors) */
       .venus-modal .venus-status:empty { display: none; }
       .venus-modal .venus-status {
         padding: 12px 16px;
         font-size: 13px;
-        color: #6B607E;
+        color: #1A1424;
         border-top: 1px solid #E6E1EE;
-        max-height: 220px;
-        overflow-y: auto;
       }
-      .venus-modal .venus-status-ok { color: #0E6F6F; font-weight: 600; }
-      .venus-modal .venus-status-warn { color: #8A4B00; font-weight: 600; }
-      .venus-modal .venus-status-err { color: #B91C1C; font-weight: 600; }
-      .venus-modal .venus-status details { margin-top: 6px; }
-      .venus-modal .venus-status summary { cursor: pointer; color: #7C3AED; font-size: 12px; }
-      .venus-modal .venus-status pre {
+
+      .venus-modal .venus-progress-block {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .venus-modal .venus-progress-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+        color: #1A1424;
+        font-weight: 500;
+      }
+      .venus-modal .venus-progress-detail-link {
+        font-size: 13px;
+        color: #7C3AED;
+        text-decoration: none;
+        font-weight: 500;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-family: inherit;
+      }
+      .venus-modal .venus-progress-detail-link:hover { text-decoration: underline; }
+      .venus-modal .venus-progress-bar {
+        display: flex;
+        height: 6px;
+        background: #F0ECF5;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .venus-modal .venus-progress-seg-ok { background: #0E7A45; height: 100%; }
+      .venus-modal .venus-progress-seg-skip { background: #D58A1A; height: 100%; }
+      .venus-modal .venus-progress-seg-err { background: #B42318; height: 100%; }
+      .venus-modal .venus-progress-legend {
+        display: flex;
+        gap: 16px;
+        font-size: 12px;
+        color: #6B607E;
+        flex-wrap: wrap;
+      }
+      .venus-modal .venus-legend-item { display: flex; align-items: center; gap: 6px; }
+      .venus-modal .venus-legend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex: 0 0 auto;
+      }
+      .venus-modal .venus-dot-ok { background: #0E7A45; }
+      .venus-modal .venus-dot-skip { background: #D58A1A; }
+      .venus-modal .venus-dot-err { background: #B42318; }
+      .venus-modal .venus-legend-item strong {
+        font-weight: 600;
+        color: #1A1424;
+        font-variant-numeric: tabular-nums;
+      }
+      .venus-modal .venus-progress-detail-panel {
+        display: none;
+        margin-top: 4px;
+        padding: 8px 10px;
+        background: #F6F3FB;
+        border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, monospace;
         font-size: 11px;
         color: #1A1424;
         white-space: pre-wrap;
-        margin-top: 4px;
-        padding: 6px 8px;
-        background: #F6F3FB;
-        border-radius: 6px;
+        max-height: 160px;
+        overflow-y: auto;
       }
+      .venus-modal .venus-progress-detail-panel.open { display: block; }
+
       .venus-modal .venus-info-card {
         padding: 10px 12px;
         background: #F4EFFB;
@@ -411,6 +549,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         color: #7C3AED;
         margin-bottom: 4px;
       }
+      .venus-modal .venus-error-line { color: #B42318; font-weight: 600; }
 
       .venus-modal .venus-footer {
         display: flex;
@@ -469,11 +608,89 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     doSearch('', results, status, count);
   }
 
-  function footerText() {
-    // Mateix missatge a totes les pantalles. A la sel screen el "fill"
-    // és en realitat un missatge informatiu, però el voluntari veu el
-    // mateix copy independentment d'on és — més consistent.
-    return 'Clica un cas per emplenar el formulari automàticament';
+  // Footer copy per estat (idle/filling/done/error). El voluntari veu el
+  // missatge actualitzat segons l'estat actual del fill.
+  const FOOTER_IDLE    = 'Clica un cas per emplenar el formulari automàticament';
+  const FOOTER_FILLING = 'Emplenant camps… no tanquis aquesta finestra';
+  const FOOTER_DONE    = 'Formulari emplenat. Revisa abans d\\'enviar.';
+  function footerText() { return FOOTER_IDLE; }
+  function setFooterText(t) {
+    const el = document.getElementById('venus-footer-text');
+    if (el) el.textContent = t;
+  }
+  function footerError(n) {
+    return n === 1
+      ? 'Hi ha 1 camp que no s\\'ha pogut emplenar. Revisa\\'l.'
+      : \`Hi ha \${n} camps que no s'han pogut emplenar. Revisa'ls.\`;
+  }
+
+  // Estat visual de la fila (idle/filling/done/error). Només una fila pot
+  // estar en estat actiu (filling/done/error) alhora — quan posem estat a
+  // una nova, reseten les altres a idle.
+  function setRowState(row, state) {
+    if (!row) return;
+    if (state !== 'idle') {
+      const all = document.querySelectorAll('.venus-modal .venus-row');
+      for (const r of all) {
+        if (r !== row && r.dataset.state !== 'idle') {
+          r.dataset.state = 'idle';
+          const t = r.querySelector('.venus-row-tail');
+          if (t) t.innerHTML = '<span class="venus-row-hint-hover">' + ICON_ARROW + '</span><span class="venus-row-hint-focus">↵ Enter</span>';
+        }
+      }
+    }
+    row.dataset.state = state;
+    const tail = row.querySelector('.venus-row-tail');
+    if (!tail) return;
+    if (state === 'filling') {
+      tail.innerHTML = '<span class="venus-spinner"></span><span>Emplenant…</span>';
+    } else if (state === 'done') {
+      tail.innerHTML = ICON_CHECK + '<span>Emplenat</span>';
+    } else if (state === 'error') {
+      tail.innerHTML = ICON_ALERT + '<span>Error</span>';
+    } else {
+      tail.innerHTML = '<span class="venus-row-hint-hover">' + ICON_ARROW + '</span><span class="venus-row-hint-focus">↵ Enter</span>';
+    }
+  }
+
+  // Renderitza la barra de progrés segmentada + llegenda + "Veure detall".
+  // ok/skip/err són els counts; issues és l'array per al detall expandible.
+  function renderProgress(statusDiv, ok, skip, err, issues) {
+    const total = ok + skip + err;
+    const segs = [];
+    if (ok > 0)   segs.push(\`<div class="venus-progress-seg-ok" style="flex:\${ok}"></div>\`);
+    if (skip > 0) segs.push(\`<div class="venus-progress-seg-skip" style="flex:\${skip}"></div>\`);
+    if (err > 0)  segs.push(\`<div class="venus-progress-seg-err" style="flex:\${err}"></div>\`);
+    const detailLink = issues && issues.length
+      ? '<button type="button" class="venus-progress-detail-link" id="venus-detail-link">Veure detall →</button>'
+      : '';
+    statusDiv.innerHTML = \`
+      <div class="venus-progress-block">
+        <div class="venus-progress-header">
+          <span>Emplenat <strong>\${ok}</strong> de <strong>\${total}</strong> camps</span>
+          \${detailLink}
+        </div>
+        <div class="venus-progress-bar">\${segs.join('')}</div>
+        <div class="venus-progress-legend">
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-ok"></span><strong>\${ok}</strong> emplenats</span>
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-skip"></span><strong>\${skip}</strong> omesos</span>
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-err"></span><strong>\${err}</strong> errors</span>
+        </div>
+        <div class="venus-progress-detail-panel" id="venus-detail-panel"></div>
+      </div>
+    \`;
+    if (issues && issues.length) {
+      const link = document.getElementById('venus-detail-link');
+      const panel = document.getElementById('venus-detail-panel');
+      let lines = '';
+      for (const r of issues) {
+        lines += escapeHtml(r.name) + ': ' + escapeHtml(r.status);
+        if (r.value) lines += ' ("' + escapeHtml(String(r.value)) + '")';
+        lines += '\\n';
+      }
+      panel.textContent = lines;
+      link.addEventListener('click', () => panel.classList.toggle('open'));
+    }
   }
 
   // Parseig: "RR-003-REDACTED--REDACTED" → "RR-003"
@@ -506,6 +723,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         const row = document.createElement('button');
         row.className = 'venus-row';
         row.type = 'button';
+        row.dataset.state = 'idle';
         const badgeClass = c.formulario === 'EX31' ? 'venus-badge-ex31' : 'venus-badge-ex32';
         const [da, tag] = splitViaLegal(c.viaLegal);
         const fullName = (escapeHtml(c.nom || '') + ' ' + escapeHtml(c.cognom1 || '')).trim() || '—';
@@ -521,9 +739,12 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
             <span class="venus-name">\${fullName}</span>
             <span class="venus-meta">\${metaHtml}</span>
           </span>
-          <span class="venus-row-arrow">\${ICON_ARROW}</span>
+          <span class="venus-row-tail">
+            <span class="venus-row-hint-hover">\${ICON_ARROW}</span>
+            <span class="venus-row-hint-focus">↵ Enter</span>
+          </span>
         \`;
-        row.addEventListener('click', () => fillCase(c, status));
+        row.addEventListener('click', () => fillCase(c, status, row));
         container.appendChild(row);
       }
     } catch (e) {
@@ -532,9 +753,9 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     }
   }
 
-  async function fillCase(c, statusDiv) {
-    // MODE INFO (seleccionModelo-XX.html): no toquem el DOM, només indiquem
-    // al voluntari quin radio (EX31 vs EX32) ha de triar manualment.
+  async function fillCase(c, statusDiv, row) {
+    // MODE INFO (seleccionModelo-XX.html): no toquem el DOM ni l'estat de
+    // la fila, només indiquem al voluntari quin radio ha de triar.
     if (location.pathname.includes('seleccionModelo')) {
       statusDiv.innerHTML = \`
         <div class="venus-info-card">
@@ -546,34 +767,37 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       return;
     }
 
-    // Verifica form correcte
+    // Verifica form correcte (EX31 vs EX32)
     const onForm = location.pathname.includes('EX31') ? 'EX31'
                  : location.pathname.includes('EX32') ? 'EX32' : '?';
     if (c.formulario !== onForm) {
-      statusDiv.innerHTML = \`<span class="venus-status-err">⚠️ Cas és per \${escapeHtml(c.formulario)}, ets a \${escapeHtml(onForm)}.</span> Torna enrere i tria \${escapeHtml(c.formulario)}.\`;
+      setRowState(row, 'error');
+      statusDiv.innerHTML = \`<span class="venus-error-line">El cas és per \${escapeHtml(c.formulario)}, però ets a \${escapeHtml(onForm)}.</span><br>Torna enrere i tria <strong>\${escapeHtml(c.formulario)}</strong>.\`;
+      setFooterText('Pantalla incompatible amb aquest cas.');
       return;
     }
-    statusDiv.innerHTML = 'Carregant payload…';
+
+    // Estat: FILLING — barra activa al primer instant.
+    setRowState(row, 'filling');
+    setFooterText(FOOTER_FILLING);
+    statusDiv.innerHTML = '';
+
     try {
       const data = await workerGet('/mercurio/payload?caso=' + encodeURIComponent(c.id));
-      statusDiv.innerHTML = 'Emplenant ' + escapeHtml(shortIdCas(c.idCas)) + '… <span style="color:#B8B0C7">(cascades AJAX 1-2s)</span>';
       const results = await fillAll(data.payload);
-      const ok = results.filter(r => r.status === 'ok' || r.status === 'ok_cascade').length;
+      const ok = results.filter(r => r.status === 'ok' || r.status === 'ok_cascade' || r.status === 'ok_cascade_retry').length;
       const skipped = results.filter(r => r.status === 'skipped').length;
-      const issues = results.filter(r => !['ok', 'ok_cascade', 'skipped'].includes(r.status));
-      let html = \`<span class="venus-status-ok">\${ok} OK</span> · \${skipped} skip · \`;
-      html += issues.length
-        ? \`<span class="venus-status-warn">\${issues.length} issues</span>\`
-        : \`<span>0 issues</span>\`;
-      if (issues.length) {
-        html += '<details><summary>Detall</summary><pre>';
-        for (const r of issues) html += escapeHtml(r.name) + ': ' + escapeHtml(r.status) + (r.value ? ' ("' + escapeHtml(String(r.value)) + '")' : '') + '\\n';
-        html += '</pre></details>';
-      }
-      statusDiv.innerHTML = html;
+      const issues = results.filter(r => !['ok', 'ok_cascade', 'ok_cascade_retry', 'skipped'].includes(r.status));
+
+      // Estat final: DONE si 0 issues, ERROR altrament.
+      setRowState(row, issues.length === 0 ? 'done' : 'error');
+      renderProgress(statusDiv, ok, skipped, issues.length, issues);
+      setFooterText(issues.length === 0 ? FOOTER_DONE : footerError(issues.length));
       console.log('[Venus] fill results:', results);
     } catch (e) {
-      statusDiv.innerHTML = '<span class="venus-status-err">Error:</span> ' + escapeHtml(String(e));
+      setRowState(row, 'error');
+      statusDiv.innerHTML = '<span class="venus-error-line">Error en carregar el cas:</span><br>' + escapeHtml(String(e));
+      setFooterText('No s\\'ha pogut carregar. Comprova la connexió.');
     }
   }
 

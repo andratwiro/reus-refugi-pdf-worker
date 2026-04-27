@@ -15,7 +15,7 @@ import { CASOS } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 
-const USERSCRIPT_VERSION = "1.2.1";
+const USERSCRIPT_VERSION = "1.3.0";
 
 export interface Env {
   // Secrets

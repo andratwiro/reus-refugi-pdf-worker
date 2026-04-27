@@ -73,10 +73,15 @@ export default {
       return handleGmailDraft(request, env);
     }
 
-    // ─── Mercurio routes ────────────────────────────────────────
-    if (request.method === "OPTIONS" && url.pathname.startsWith("/mercurio")) {
+    // ─── CORS preflight per a totes les rutes ──────────────────────
+    // Endpoints com /anexo2, /generate, /gmail-draft i /mercurio/* es
+    // criden des de contexts browser (Airtable Scripting Extensions,
+    // Mercurio userscript) que envien preflight OPTIONS abans del POST.
+    if (request.method === "OPTIONS") {
       return corsPreflight(request);
     }
+
+    // ─── Mercurio routes ────────────────────────────────────────
     if (request.method === "GET" && url.pathname === "/mercurio.user.js") {
       return handleUserscript(request, env);
     }
@@ -94,16 +99,16 @@ export default {
 // ─── /generate (existing) ───────────────────────────────────────────────────
 
 async function handleGenerate(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized();
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
 
   let body: GenerateRequest;
   try {
     body = (await request.json()) as GenerateRequest;
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return corsJson({ error: "Invalid JSON body" }, request, 400);
   }
   if (!body.recordId || !body.recordId.startsWith("rec")) {
-    return json({ error: "Missing or invalid recordId" }, 400);
+    return corsJson({ error: "Missing or invalid recordId" }, request, 400);
   }
 
   const baseId = body.baseId || env.AIRTABLE_BASE_ID;
@@ -171,7 +176,7 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
       bytes: filledBytes,
     });
 
-    return json({
+    return corsJson({
       ok: true,
       recordId: body.recordId,
       filename,
@@ -181,27 +186,27 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
       extraInserts: extraDependents.length,
       signed: Boolean(signatureBytes),
       sizeBytes: filledBytes.length,
-    });
+    }, request);
   } catch (err) {
     console.error("generate error:", err);
     const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, error: message }, 500);
+    return corsJson({ ok: false, error: message }, request, 500);
   }
 }
 
 // ─── /anexo2 ────────────────────────────────────────────────────────────────
 
 async function handleAnexo2(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized();
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
 
   let body: Anexo2Request;
   try {
     body = (await request.json()) as Anexo2Request;
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return corsJson({ error: "Invalid JSON body" }, request, 400);
   }
   if (!body.recordId || !body.recordId.startsWith("rec")) {
-    return json({ error: "Missing or invalid recordId" }, 400);
+    return corsJson({ error: "Missing or invalid recordId" }, request, 400);
   }
 
   const tableId = env.INFORMES_VULN_TABLE_ID;
@@ -240,36 +245,36 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
       new Date().toISOString(),
     );
 
-    return json({
+    return corsJson({
       ok: true,
       recordId: body.recordId,
       filename,
       sizeBytes: pdfBytes.length,
-    });
+    }, request);
   } catch (err) {
     console.error("anexo2 error:", err);
     const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, error: message }, 500);
+    return corsJson({ ok: false, error: message }, request, 500);
   }
 }
 
 // ─── /gmail-draft ───────────────────────────────────────────────────────────
 
 async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized();
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
 
   let body: GmailDraftRequest;
   try {
     body = (await request.json()) as GmailDraftRequest;
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return corsJson({ error: "Invalid JSON body" }, request, 400);
   }
   if (!body.to || !body.attachmentUrl) {
-    return json({ error: "Missing 'to' or 'attachmentUrl'" }, 400);
+    return corsJson({ error: "Missing 'to' or 'attachmentUrl'" }, request, 400);
   }
 
   if (!env.GAS_WEBAPP_URL || !env.GAS_SHARED_SECRET) {
-    return json({ error: "GAS not configured (missing GAS_WEBAPP_URL or GAS_SHARED_SECRET)" }, 500);
+    return corsJson({ error: "GAS not configured (missing GAS_WEBAPP_URL or GAS_SHARED_SECRET)" }, request, 500);
   }
 
   try {
@@ -292,24 +297,25 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
     try {
       parsed = JSON.parse(text);
     } catch {
-      return json(
+      return corsJson(
         {
           ok: false,
           error: `GAS did not return JSON (status ${gasResp.status})`,
           rawResponse: text.slice(0, 500),
         },
+        request,
         502,
       );
     }
 
     return new Response(JSON.stringify(parsed, null, 2), {
       status: gasResp.ok ? 200 : gasResp.status,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders(request) },
     });
   } catch (err) {
     console.error("gmail-draft error:", err);
     const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, error: `GAS fetch failed: ${message}` }, 502);
+    return corsJson({ ok: false, error: `GAS fetch failed: ${message}` }, request, 502);
   }
 }
 
@@ -318,15 +324,26 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
 const ALLOWED_CORS_ORIGINS = [
   "https://mercurio.delegaciondelgobierno.gob.es",
   "http://localhost:3001",
+  "https://airtable.com",
+  "https://app.airtable.com",
+];
+// Airtable Scripting Extensions corren en iframes sandboxed amb subdomain
+// dinàmic. Reflectim l'Origin si fa match d'algun d'aquests patrons.
+const AIRTABLE_ORIGIN_PATTERNS = [
+  /^https:\/\/[a-z0-9-]+\.airtableblocks\.com$/,
+  /^https:\/\/[a-z0-9-]+\.airtableusercontent\.com$/,
 ];
 
 function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") ?? "";
-  const allow = ALLOWED_CORS_ORIGINS.includes(origin) ? origin : ALLOWED_CORS_ORIGINS[0];
+  const isAllowed =
+    ALLOWED_CORS_ORIGINS.includes(origin) ||
+    AIRTABLE_ORIGIN_PATTERNS.some((re) => re.test(origin));
+  const allow = isAllowed ? origin : ALLOWED_CORS_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };

@@ -24,7 +24,7 @@
  * és un certificat signat (RECEX 2026-04-27 — vegeu commit history).
  */
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFArray, PDFDict, PDFRef } from "pdf-lib";
 import {
   ANEXO2_AIRTABLE_FIELDS as A,
   ANEXO2_PDF_FIELDS as P,
@@ -102,20 +102,43 @@ export async function fillAnexo2Pdf(
   // falla a aquesta plantilla PyPDF2+reportlab, o l'On state appearance és
   // buit/incorrecte).
   //
-  // flatten() resol això de forma definitiva:
-  //   1. Regenera els appearance streams una vegada (amb la font default
-  //      Helvetica de pdf-lib, que té suport WinAnsi → accents espanyols OK)
-  //   2. Els converteix en contingut de pàgina (gràfics dibuixats) i
-  //      elimina els camps de form completament del document
-  //   3. Resultat: PDF sense forms, només contingut estàtic — visible a
-  //      qualsevol visor, sense dependre de regeneració al vol.
+  // flatten() resol això de forma definitiva (regenera streams + bake-eja
+  // com a contingut de pàgina + elimina fields). Trade-off: el PDF ja no
+  // és editable post-generació — acceptable per un certificat signat.
   //
-  // Trade-off: el PDF resultant ja no permet edició manual del form. Per
-  // un certificat de vulnerabilitat signat/segellat per RECEX, això és
-  // el comportament correcte (no s'ha de poder modificar post-emissió).
+  // PERÒ: la plantilla PyPDF2+reportlab té widget annotations amb /P
+  // references obsoletes (apunten a objects de pàgina que pdf-lib no troba
+  // al getPages()). flatten() llavors llança "Could not find page for
+  // PDFRef N 0 R". La fix: abans de flatten, reconstruir els /P de cada
+  // annotation a partir de la pàgina que els conté al seu /Annots array
+  // — això garanteix que pdf-lib pot resoldre la pàgina del widget.
+  rebuildAnnotPageRefs(pdfDoc);
   form.flatten();
 
   return await pdfDoc.save();
+}
+
+/**
+ * Reconstrueix el /P de cada annotation perquè apunti a la pàgina que la
+ * conté al seu /Annots. Necessari per plantilles generades amb PyPDF2/
+ * reportlab que emeten /P references obsoletes que trenquen el flatten()
+ * de pdf-lib.
+ */
+function rebuildAnnotPageRefs(pdfDoc: PDFDocument): void {
+  for (const page of pdfDoc.getPages()) {
+    const annots = page.node.lookup(PDFName.of("Annots"));
+    if (!(annots instanceof PDFArray)) continue;
+    for (let i = 0; i < annots.size(); i++) {
+      const item = annots.get(i);
+      const annotDict =
+        item instanceof PDFRef
+          ? pdfDoc.context.lookup(item)
+          : item;
+      if (annotDict instanceof PDFDict) {
+        annotDict.set(PDFName.of("P"), page.ref);
+      }
+    }
+  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

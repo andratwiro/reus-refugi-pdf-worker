@@ -3,48 +3,50 @@
  *
  * Plantilla: assets/A2_certificado_vulnerabilidad.pdf
  *   - Ja ve amb dades d'entitat (Texto145-149), segell visual i Casilla 53
- *     (Tercer Sector) marcada. NO tocar aquests camps.
+ *     (Tercer Sector) marcada. Aquestes les redibuixem manualment a partir
+ *     del /V del template — Strategy A no manté l'AcroForm.
  *   - Camps a omplir del sol·licitant: Texto150-158.
  *   - Altres factors (text lliure): Texto159.
  *   - Data d'emissió (avui): Texto161.
  *   - Casillas 54-64: factors de vulnerabilitat (11 opcions, 1:1 amb multipleSelect).
  *   - Casilla 65: es marca automàticament si "Altres factors" té contingut.
- *   - Texto162-164 (DIR3): deixar buits — ja estan impresos al peu.
+ *   - Texto162-164 (DIR3): ja estan al /Fm1 / page content del template, no toquem.
  *
- * Lectura d'Airtable: per FIELD ID (returnFieldsByFieldId=true). Les opcions
- * del multipleSelect es matchen tant per option ID com per name (vegeu
- * VULNERABILITAT_CASILLA al mappings.ts).
+ * Renderitzat universal — Strategy A (ple flatten manual):
  *
- * Renderitzat universal: la plantilla PyPDF2/reportlab genera /AP streams
- * pels checkboxes que Chrome/Firefox/Drive/Samsung NO renderitzen quan
- * estan marcats — només Apple Preview/Adobe que regeneren al vol.
+ * Iteracions prèvies (vegeu commit history 2026-04-27):
+ *   1. NeedAppearances=false → Chrome/Firefox/Drive no mostraven Casillas
+ *      marcades.
+ *   2. form.flatten() amb /P rebuild → flatten produeix XObjects malformats
+ *      i regenera appearances en posicions errònies.
+ *   3. Bypass flatten + manual draw + delete /AP + remove from /Annots →
+ *      pdf-lib's save() amb updateFieldAppearances:true (per defecte) DUPLICA
+ *      cada widget tocat: una còpia al /AcroForm /Fields amb la nostra /V i
+ *      /F=2 (Hidden), una altra còpia al page /Annots amb /AP regenerat i
+ *      /V buit. Adobe/Preview llegeixen /Fields i veuen /F=2 → no renderitzen
+ *      el widget → només la nostra drawText es veu (correcte). Chrome/Firefox/
+ *      Drive/Samsung llegeixen /Annots i renderitzen el /AP regenerat A SOBRE
+ *      de la nostra drawText → text doble.
  *
- * Després d'iterar tres aproximacions (NeedAppearances=false, form.flatten()
- * amb i sense updateFieldAppearances), la solució estable és **bypassar
- * pdf-lib's flatten completament** i dibuixar el contingut directament al
- * content stream de la pàgina:
+ * Strategy A: ELIMINEM l'AcroForm completament del PDF resultant. El document
+ * passa a ser purament estàtic (no editable), idèntic per a tots els visors:
  *
- *   1. setText/check actualitzen /V dels camps (per a Apple Preview/Adobe).
- *   2. Per cada camp tocat, dibuixem text/marca al rect del widget
- *      (drawText / drawRectangle al PDFPage).
- *   3. Resolem la pàgina destí via /Annots membership amb fallback al /P
- *      o pages[0] (la plantilla té widgets orphans i mal-posicionats).
- *   4. Eliminem els widgets tocats del /Annots de la pàgina + /F=2 +
- *      esborrem /AP perquè el visor no renderitzi appearance default a
- *      sobre. Camps NO tocats (Texto145-149 entitat, Casilla 53) conserven
- *      la seva /AP original — els visors els renderitzen com fa la plantilla.
- *   5. Marca rectangle 120% del widget rect — el frame del checkbox està
- *      al page content stream amb fill blanc per dins; sense l'expansió
- *      el blanc tapa la nostra marca.
- *   6. Override per Texto161 (Fecha): el widget rect del template està a
- *      page 1 quan l'etiqueta visible és a page 2. Forcem pageIndex=1.
+ *   1. Llegim els widget annotations DIRECTAMENT del /Annots de cada pàgina
+ *      (bypass form.getFields() — pdf-lib clona els dicts per a la seva
+ *      representació interna del form, fent que widget.dict no coincideixi
+ *      amb el dict que viu al /Annots de la pàgina; per això havia fallat
+ *      la resolució de pàgina al codi previ).
+ *   2. Per a cada widget de tipus /Tx amb valor (record-provided OR /V del
+ *      template), drawText al rect del widget a la pàgina correcta.
+ *   3. Per a cada checkbox amb /AS=/Yes (record OR template prechecked),
+ *      drawRectangle ple ~120% del rect (overpinta el frame buit que ve
+ *      a /Fm1 page 1, o al page content stream a page 2).
+ *   4. Eliminem /AcroForm del catalog i buidem /Annots de cada pàgina.
+ *   5. save({ updateFieldAppearances: false }) — no hi ha res a regenerar.
  *
- * Verificat amb harness offline (mock/anexo2-render-test.ts) renderitzant
- * el PDF resultant amb poppler/cairo (~Chrome/Drive) i comprovant
- * visualment.
- *
- * Trade-off: PDF no editable post-generació. Acceptable per certificat
- * signat (vegeu commit history 2026-04-27).
+ * Trade-off: PDF no editable post-generació. Doble win:
+ *   - Renderitza idèntic a tot arreu.
+ *   - El destinatari no pot editar el certificat (signat).
  */
 
 import {
@@ -53,9 +55,9 @@ import {
   PDFArray,
   PDFDict,
   PDFRef,
-  PDFBool,
+  PDFString,
+  PDFHexString,
   PDFNumber,
-  PDFPage,
   StandardFonts,
   rgb,
 } from "pdf-lib";
@@ -68,41 +70,35 @@ import {
 
 type AirtableRecordLike = { id: string; fields: Record<string, unknown> };
 
+interface WidgetInfo {
+  pageIndex: number;
+  name: string;
+  type: "text" | "check" | "other";
+  rect: { x: number; y: number; w: number; h: number };
+  templateValue: string; // /V on the template (text content, or /Yes / /Off for checkboxes)
+}
+
+const FONT_SIZE = 10;
+
 export async function fillAnexo2Pdf(
   templateBytes: ArrayBuffer,
   record: AirtableRecordLike,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
-  const form = pdfDoc.getForm();
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const f = record.fields;
 
-  // Tracking: només regenerarem appearances per als camps QUE NOSALTRES
-  // toquem. Els camps pre-omplerts del template (Texto145-149, Casilla 53,
-  // etc.) conserven el seu /AP original — així flatten amb
-  // updateFieldAppearances:false bake-eja exactament el que la plantilla
-  // tenia previst, sense overlap amb una regeneració mal posicionada.
-  const touchedTextFields = new Set<string>();
-  const touchedCheckBoxes = new Set<string>();
+  // Sobreescriptures del registre (Airtable). Si no hi ha valor, el text
+  // pre-omplert al template preval (per a Texto145-149 entitat, Texto158
+  // "Tarragona", etc.).
+  const textOverrides = new Map<string, string>();
+  const checkOverrides = new Set<string>();
 
   const setText = (name: string, value: string): void => {
-    if (!value) return; // no clobberem defaults de la plantilla amb cadenes buides
-    try {
-      form.getTextField(name).setText(value);
-      touchedTextFields.add(name);
-    } catch {
-      /* skip missing */
-    }
-  };
-  const check = (name: string): void => {
-    try {
-      form.getCheckBox(name).check();
-      touchedCheckBoxes.add(name);
-    } catch {
-      /* skip missing */
-    }
+    if (value) textOverrides.set(name, value);
   };
 
-  // ── Secció 2 — Dades del sol·licitant ─────────────────────────────────────
+  // Secció 2 — Dades del sol·licitant
   setText(P.nom, strOf(f[A.nom]));
   setText(P.numDoc, strOf(f[A.numDoc]));
   setText(P.dataNaixement, formatIsoDate(f[A.dataNaixement]));
@@ -111,252 +107,156 @@ export async function fillAnexo2Pdf(
   setText(P.telefon, strOf(f[A.telefon]));
   setText(P.localitat, strOf(f[A.localitat]));
   setText(P.cp, strOf(f[A.cp]));
-  setText(P.provincia, strOf(f[A.provincia])); // plantilla té "Tarragona" default; només sobreescriu si hi ha valor
+  setText(P.provincia, strOf(f[A.provincia]));
 
-  // ── Secció 3 — Circumstàncies de vulnerabilitat ──────────────────────────
+  // Secció 3 — Circumstàncies de vulnerabilitat
   const factors = f[A.factors];
   if (Array.isArray(factors)) {
     for (const raw of factors) {
-      // Airtable pot retornar strings (names) o {id, name, color}. Provem tots dos.
       const key =
         typeof raw === "string"
           ? raw
-          : (typeof raw === "object" && raw !== null
-              ? (("id" in raw && typeof (raw as { id: unknown }).id === "string"
-                  ? (raw as { id: string }).id
-                  : ("name" in raw && typeof (raw as { name: unknown }).name === "string"
-                      ? (raw as { name: string }).name
-                      : "")))
-              : "");
+          : typeof raw === "object" && raw !== null
+            ? "id" in raw && typeof (raw as { id: unknown }).id === "string"
+              ? (raw as { id: string }).id
+              : "name" in raw &&
+                  typeof (raw as { name: unknown }).name === "string"
+                ? (raw as { name: string }).name
+                : ""
+            : "";
       if (!key) continue;
       const casilla = VULNERABILITAT_CASILLA[key];
-      if (casilla) check(casilla);
+      if (casilla) checkOverrides.add(casilla);
     }
   }
 
-  // Text lliure "Otros (especificar)" → Texto159 + Casilla 65.
-  // Si A.altresFactors és buit (field ID encara no capturat), saltem aquesta part.
   const altresFactors = A.altresFactors ? strOf(f[A.altresFactors]).trim() : "";
   if (altresFactors) {
     setText(P.altresFactors, altresFactors);
-    check(ANEXO2_OTROS_CASILLA);
+    checkOverrides.add(ANEXO2_OTROS_CASILLA);
   }
 
-  // ── Fecha (avui, Europe/Madrid) ──────────────────────────────────────────
+  // Data
   setText(P.dataAvui, todayInMadrid());
 
-  // ── Manual draw — visibilitat universal sense flatten ────────────────────
-  // Història del bug (3 iteracions):
-  //
-  // 1ª: NeedAppearances=false → Chrome/Firefox/Drive no mostraven Casillas
-  //     marcades (només Apple Preview/Adobe regeneren al vol).
-  //
-  // 2ª: form.flatten() amb updateFieldAppearances:true → els /P refs
-  //     obsoletes de la plantilla PyPDF2+reportlab feien fallar flatten()
-  //     amb "Could not find page for PDFRef N 0 R". Fix amb /P rebuild.
-  //
-  // 3ª: form.flatten() amb updateFieldAppearances:false (post-/P rebuild)
-  //     → flatten produeix XObjects malformats (poppler avisa "FlatWidget-X
-  //     is wrong type") i regenera appearances en posicions errònies,
-  //     causant text duplicat a la Secció 1 i Casillas 54-64 buides.
-  //     (Verificat amb harness local — mock/anexo2-render-test.ts.)
-  //
-  // Fix definitiu: BYPASS pdf-lib's flatten completament. Per a cada camp
-  // que nosaltres toquem, dibuixem text/marca directament al contingut de
-  // la pàgina al rect del widget i netegem la /AP del widget perquè el
-  // visor no dibuixi el placeholder original sobre. Els camps NO tocats
-  // (Texto145-149 entitat, Casilla 53 Tercer Sector, segell visual)
-  // conserven la /AP original del template — el visor els renderitza com
-  // sempre. NeedAppearances=false per garantir que els visors NO regenerin
-  // el contingut dels camps no tocats.
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const FONT_SIZE = 10;
+  // ── Recórrer els widget annotations directament des de /Annots ──────────
+  const widgets = collectWidgets(pdfDoc);
+  const pages = pdfDoc.getPages();
 
-
-  // Mapa widget dict → page que el conté (font de veritat: /Annots membership).
-  // Necessari perquè el template és multi-page i pdf-lib's widget.P() pot
-  // tenir refs obsoletes; volem dibuixar al PAGE on viu cada widget realment.
-  const widgetPageMap = buildWidgetPageMap(pdfDoc);
-
-  // Overrides de pàgina — alguns widgets de la plantilla estan registrats
-  // a la pàgina equivocada. Per Texto161 (Fecha), el widget rect cau al
-  // mateix Y on hi ha l'etiqueta "Fecha:" visible, però a page 1 enlloc
-  // de page 2 (template bug). Forcem pageIndex=1 i usem el rect natiu
-  // perquè el rect Y casa amb l'etiqueta a page 2.
-  const PAGE_OVERRIDE: Record<string, number> = {
-    [P.dataAvui]: 1,
-  };
-
-  // Dibuix manual del text als camps que hem omplert
-  for (const fieldName of touchedTextFields) {
-    let field;
-    try {
-      field = form.getTextField(fieldName);
-    } catch {
-      continue;
-    }
-    const text = field.getText() ?? "";
-    if (!text) continue;
-    const pageOverride = PAGE_OVERRIDE[fieldName];
-    for (const widget of field.acroField.getWidgets()) {
-      const targetPage =
-        pageOverride !== undefined
-          ? pdfDoc.getPages()[pageOverride]
-          : widgetPageMap.get(widget.dict);
-      if (!targetPage) continue;
-      const rect = widget.getRectangle();
-      targetPage.drawText(text, {
-        x: rect.x + 3,
-        y: rect.y + (rect.height - FONT_SIZE) / 2 + 1,
+  for (const w of widgets) {
+    const page = pages[w.pageIndex];
+    if (!page) continue;
+    if (w.type === "text") {
+      const value = textOverrides.get(w.name) ?? w.templateValue;
+      if (!value) continue;
+      page.drawText(value, {
+        x: w.rect.x + 3,
+        y: w.rect.y + (w.rect.h - FONT_SIZE) / 2 + 1,
         size: FONT_SIZE,
         font: helvetica,
         color: rgb(0, 0, 0),
+        maxWidth: w.rect.w - 6,
       });
-      // Amagar el widget perquè el visor no dibuixi cap appearance pròpia
-      // sobre la nostra. /F bit 2 = Hidden + esborrar /AP per redundància.
-      widget.dict.set(PDFName.of("F"), PDFNumber.of(2));
-      widget.dict.delete(PDFName.of("AP"));
-    }
-  }
-
-  // Dibuix manual de la marca (rectangle ple) als checkboxes que hem marcat
-  for (const cbName of touchedCheckBoxes) {
-    let cb;
-    try {
-      cb = form.getCheckBox(cbName);
-    } catch {
-      continue;
-    }
-    if (!cb.isChecked()) continue;
-    for (const widget of cb.acroField.getWidgets()) {
-      const targetPage = widgetPageMap.get(widget.dict);
-      if (!targetPage) continue;
-      const rect = widget.getRectangle();
-      // Marca ple ~120% del rect del widget. Necessari extendre-ho per
-      // damunt del rect perquè la plantilla té el frame de checkbox al
-      // page content stream amb un fill blanc per dins; si dibuixem
-      // exactament al rect, el fill blanc tapa la nostra marca.
-      const padX = rect.width * 0.1;
-      const padY = rect.height * 0.1;
-      targetPage.drawRectangle({
-        x: rect.x - padX,
-        y: rect.y - padY,
-        width: rect.width + padX * 2,
-        height: rect.height + padY * 2,
+    } else if (w.type === "check") {
+      const checked =
+        checkOverrides.has(w.name) || w.templateValue === "Yes";
+      if (!checked) continue;
+      // Marca ~120% del rect — el frame buit ve dibuixat a /Fm1 (page 1)
+      // o al page content stream (page 2) i té fill blanc; sense
+      // l'expansió, el blanc tapa la nostra marca.
+      const padX = w.rect.w * 0.1;
+      const padY = w.rect.h * 0.1;
+      page.drawRectangle({
+        x: w.rect.x - padX,
+        y: w.rect.y - padY,
+        width: w.rect.w + padX * 2,
+        height: w.rect.h + padY * 2,
         color: rgb(0, 0, 0),
       });
-      widget.dict.set(PDFName.of("F"), PDFNumber.of(2));
-      widget.dict.delete(PDFName.of("AP"));
     }
   }
 
-  // NeedAppearances=false: no demanem al visor que regeneri res. Els
-  // widgets sense /AP (els que hem netejat) no tenen res per dibuixar i
-  // queden invisibles. Els widgets amb /AP original (template defaults)
-  // es renderitzen correctament com sempre.
-  // Eliminar els widgets tocats del /Annots de cada pàgina. Sense això
-  // alguns visors (p.ex. ghostscript) renderitzen una appearance default
-  // pel widget tot i tenir /F=2 i /AP buit, tapant la nostra marca.
-  // Untouched widgets (template pre-fill com Casilla 53) NO es toquen,
-  // així conserven la seva /AP original.
-  const touchedDicts = new Set<PDFDict>();
-  for (const name of touchedTextFields) {
-    try {
-      for (const w of form.getTextField(name).acroField.getWidgets()) {
-        touchedDicts.add(w.dict);
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  for (const name of touchedCheckBoxes) {
-    try {
-      for (const w of form.getCheckBox(name).acroField.getWidgets()) {
-        touchedDicts.add(w.dict);
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  for (const page of pdfDoc.getPages()) {
-    const annots = page.node.lookup(PDFName.of("Annots"));
-    if (!(annots instanceof PDFArray)) continue;
-    for (let i = annots.size() - 1; i >= 0; i--) {
-      const item = annots.get(i);
-      const dict =
-        item instanceof PDFRef ? pdfDoc.context.lookup(item) : item;
-      if (dict instanceof PDFDict && touchedDicts.has(dict)) {
-        annots.remove(i);
-      }
-    }
+  // ── Eliminar AcroForm + tots els widget annotations ─────────────────────
+  // Fa el PDF estàtic i no editable. Cap visor pot rederitzar /AP que ja no
+  // existeix; només el contingut estàtic de la pàgina + les nostres draws.
+  pdfDoc.catalog.delete(PDFName.of("AcroForm"));
+  for (const page of pages) {
+    page.node.set(PDFName.of("Annots"), pdfDoc.context.obj([]));
   }
 
-  form.acroForm.dict.set(PDFName.of("NeedAppearances"), PDFBool.False);
-
-  return await pdfDoc.save();
+  return await pdfDoc.save({ updateFieldAppearances: false });
 }
 
 /**
- * Construeix un mapa widget.dict → PDFPage. Tres fonts de veritat, en
- * ordre de fiabilitat:
- *   1. /Annots membership: si el widget apareix a la /Annots d'alguna
- *      pàgina, sabem on viu de manera definitiva.
- *   2. Fallback: si el widget té /P apuntant a una pàgina vàlida, l'usem.
- *   3. Heurística: si el rect del widget té y a la meitat superior del
- *      page total i hi ha 2 pàgines, és page 1 (Anexo II: page 1 conté
- *      Sections 1-3, page 2 conté la resta). Si y és molt amunt o molt
- *      avall, page 2.
- *
- * Necessari perquè la plantilla PyPDF2/reportlab té widgets orphans —
- * registrats al form però no a cap /Annots de cap pàgina, amb /P sovint
- * obsolet. Sense aquesta lògica de fallback, dibuixar al primer page
- * fica les marques de Section 3 al lloc equivocat.
+ * Recorre el /Annots de cada pàgina i extreu els widget annotations en
+ * brut (sense passar per la representació de form de pdf-lib, que clona
+ * dicts i ens trenca la correspondència widget↔pàgina).
  */
-function buildWidgetPageMap(pdfDoc: PDFDocument): Map<PDFDict, PDFPage> {
-  const map = new Map<PDFDict, PDFPage>();
+function collectWidgets(pdfDoc: PDFDocument): WidgetInfo[] {
+  const out: WidgetInfo[] = [];
   const pages = pdfDoc.getPages();
-  if (pages.length === 0) return map;
 
-  // Pass 1: /Annots membership (font definitiva)
-  for (const page of pages) {
-    const annots = page.node.lookup(PDFName.of("Annots"));
+  for (let i = 0; i < pages.length; i++) {
+    const annots = pages[i].node.lookup(PDFName.of("Annots"));
     if (!(annots instanceof PDFArray)) continue;
-    for (let i = 0; i < annots.size(); i++) {
-      const item = annots.get(i);
-      const dict =
-        item instanceof PDFRef
-          ? pdfDoc.context.lookup(item)
-          : item;
-      if (dict instanceof PDFDict) {
-        map.set(dict, page);
+    for (let k = 0; k < annots.size(); k++) {
+      const item = annots.get(k);
+      const dict = item instanceof PDFRef ? pdfDoc.context.lookup(item) : item;
+      if (!(dict instanceof PDFDict)) continue;
+      const subtype = dict.lookup(PDFName.of("Subtype"));
+      if (!(subtype instanceof PDFName) || subtype.asString() !== "/Widget") {
+        continue;
       }
-    }
-  }
 
-  // Pass 2: widgets orphans — assignar via /P si vàlid, altrament fallback
-  // a la primera pàgina (Anexo II Section 3 — Casillas 54-64 — viu a page 1).
-  const validRefMap = new Map<string, PDFPage>();
-  for (const p of pages) {
-    validRefMap.set(`${p.ref.objectNumber} ${p.ref.generationNumber}`, p);
-  }
-  const form = pdfDoc.getForm();
-  for (const field of form.getFields()) {
-    for (const widget of field.acroField.getWidgets()) {
-      if (map.has(widget.dict)) continue; // ja resolt
-      const pVal = widget.dict.get(PDFName.of("P"));
-      if (pVal instanceof PDFRef) {
-        const matched = validRefMap.get(`${pVal.objectNumber} ${pVal.generationNumber}`);
-        if (matched) {
-          map.set(widget.dict, matched);
-          continue;
+      const name = decodePdfString(dict.lookup(PDFName.of("T")));
+      if (!name) continue;
+
+      const rectArr = dict.lookup(PDFName.of("Rect"));
+      if (!(rectArr instanceof PDFArray) || rectArr.size() < 4) continue;
+      const r0 = numFrom(rectArr.get(0));
+      const r1 = numFrom(rectArr.get(1));
+      const r2 = numFrom(rectArr.get(2));
+      const r3 = numFrom(rectArr.get(3));
+      if (r0 === null || r1 === null || r2 === null || r3 === null) continue;
+      const rect = {
+        x: Math.min(r0, r2),
+        y: Math.min(r1, r3),
+        w: Math.abs(r2 - r0),
+        h: Math.abs(r3 - r1),
+      };
+
+      const ft = dict.lookup(PDFName.of("FT"));
+      const ftStr = ft instanceof PDFName ? ft.asString() : "";
+      let type: WidgetInfo["type"] = "other";
+      let templateValue = "";
+      const vEntry = dict.lookup(PDFName.of("V"));
+      if (ftStr === "/Tx") {
+        type = "text";
+        templateValue = decodePdfString(vEntry);
+      } else if (ftStr === "/Btn") {
+        type = "check";
+        if (vEntry instanceof PDFName) {
+          templateValue = vEntry.asString() === "/Yes" ? "Yes" : "Off";
+        } else {
+          templateValue = "Off";
         }
       }
-      // Fallback final: primera pàgina (Section 3 i la resta del form principal)
-      map.set(widget.dict, pages[0]);
+
+      out.push({ pageIndex: i, name, type, rect, templateValue });
     }
   }
+  return out;
+}
 
-  return map;
+function decodePdfString(v: unknown): string {
+  if (v instanceof PDFString) return v.decodeText();
+  if (v instanceof PDFHexString) return v.decodeText();
+  return "";
+}
+
+function numFrom(v: unknown): number | null {
+  if (v instanceof PDFNumber) return v.asNumber();
+  return null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -395,7 +295,7 @@ export function anexo2Filename(record: AirtableRecordLike): string {
   const nom = strOf(record.fields[A.nom]);
   const safe = nom
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^\w\s-]/g, "")
     .trim()
     .replace(/\s+/g, "_");

@@ -314,21 +314,31 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
       }
 
+      /* Container amb padding lateral per inset les files del modal edge.
+       * gap entre files (substitueix el border-top divider) perquè el
+       * border-radius dels rows es vegi sense clip. */
       .venus-modal .venus-results {
         max-height: 360px;
         overflow-y: auto;
+        padding: 4px 8px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
       }
 
-      /* Row base — idle. 1.5px transparent border reserva l'espai per evitar
-       * layout-shift quan saltem a estats colored (filling/done/error). */
+      /* Row base — idle. 1.5px transparent border reserva l'espai per
+       * evitar layout-shift quan saltem a estats colored. border-radius
+       * 10px perquè els borders colored (filling/done/error) tinguin
+       * cantonades suaus i no toquin el border del modal. */
       .venus-modal .venus-row {
         display: flex;
         align-items: center;
         gap: 14px;
-        padding: 14px 16px;
+        padding: 14px 12px;
         cursor: pointer;
         background: #FFFFFF;
         border: 1.5px solid transparent;
+        border-radius: 10px;
         width: 100%;
         text-align: left;
         font-family: inherit;
@@ -336,7 +346,6 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         color: inherit;
         transition: background 100ms, border-color 100ms;
       }
-      .venus-modal .venus-row + .venus-row { border-top-color: #F0ECF5; }
       .venus-modal .venus-row:hover,
       .venus-modal .venus-row:focus,
       .venus-modal .venus-row:active {

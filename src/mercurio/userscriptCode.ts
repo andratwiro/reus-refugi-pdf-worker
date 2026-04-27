@@ -1,5 +1,5 @@
 /**
- * Userscript de PRODUCCIÓ — Reus Refugi Mercurio Auto-Fill.
+ * Userscript de PRODUCCIÓ — Venus (eina interna Reus Refugi) per Mercurio.
  *
  * Diferent del MVP (mock/userscript/template.user.js) en què:
  *   - No té payloads hardcoded; cerca i llegeix d'Airtable via Worker
@@ -10,16 +10,21 @@
  * substitueix els placeholders `__WORKER_URL__` i `__SHARED_SECRET__`
  * a runtime amb la URL pública del Worker i el secret.
  *
+ * El userscript s'injecta a tres pantalles de Mercurio:
+ *   - seleccionModelo-XX.html        → MODE INFO: clica cas, et diu si és EX31/EX32
+ *   - nuevaSolicitud-EX31/EX32.html  → MODE OMPLIR: clica cas, omple 144 camps
+ *
  * Nota seguretat: el SHARED_SECRET viatja embedded al userscript.
  * El nostre threat model: voluntaris RECEX de confiança + audit logs
  * Cloudflare. Si això canvia, considerar OAuth per voluntari.
  */
 export const USERSCRIPT_TEMPLATE = `// ==UserScript==
-// @name         Reus Refugi — Mercurio Auto-Fill
+// @name         Venus — Auto-Fill Mercurio
 // @namespace    https://reusrefugi.cat
 // @version      __VERSION__
 // @description  Cerca un cas d'Airtable Venus i omple el form EX-31/EX-32 de Mercurio amb 1 click. NO submiteja.
 // @author       Reus Refugi
+// @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/seleccionModelo-*.html*
 // @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX31.html*
 // @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX32.html*
 // @updateURL    __WORKER_URL__/mercurio.user.js
@@ -194,9 +199,9 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   // ─── UI ─────────────────────────────────────────────────────────────
   function injectPanel() {
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#fff;border:2px solid #2563eb;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-family:system-ui,sans-serif;font-size:13px;width:280px';
+    wrap.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#fff;border:2px solid #A78BFA;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-family:system-ui,sans-serif;font-size:13px;width:280px';
     wrap.innerHTML = \`
-      <div style="font-weight:600;color:#2563eb;margin-bottom:8px">🚀 Reus Refugi — Auto-Fill</div>
+      <div style="font-weight:600;color:#7C3AED;margin-bottom:8px">💜 Venus — Auto-Fill</div>
       <input id="rr-search" type="text" placeholder="Cerca cas (nom o cognom)…" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ccc;border-radius:4px;margin-bottom:6px">
       <div id="rr-results" style="max-height:240px;overflow:auto"></div>
       <div id="rr-status" style="margin-top:8px;font-size:11px;color:#777;max-height:200px;overflow:auto"></div>
@@ -206,6 +211,12 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     const search = wrap.querySelector('#rr-search');
     const results = wrap.querySelector('#rr-results');
     const status = wrap.querySelector('#rr-status');
+
+    // Hint inicial diferent segons pantalla: a la sel screen el panell és
+    // info-only (no ompli res), a EX31/EX32 ompli els 144 camps.
+    if (location.pathname.includes('seleccionModelo')) {
+      status.innerHTML = '<em style="color:#7C3AED">Clica un cas per saber quin formulari triar (EX31/EX32).</em>';
+    }
 
     let timer = null;
     search.addEventListener('input', () => {
@@ -228,7 +239,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       container.innerHTML = '';
       for (const c of cases) {
         const item = document.createElement('button');
-        item.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;margin-bottom:3px;border:1px solid #e5e7eb;background:#f9fafb;border-radius:4px;cursor:pointer;font-size:12px';
+        item.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;margin-bottom:3px;border:1px solid #DDD6FE;background:#F5F3FF;border-radius:4px;cursor:pointer;font-size:12px';
         item.innerHTML = \`<strong>\${escapeHtml(c.nom)} \${escapeHtml(c.cognom1 || '')}</strong> · <span style="color:#666">\${escapeHtml(c.viaLegal || '?')}</span><br><span style="color:#999;font-size:10px">\${escapeHtml(c.idCas)} · \${c.formulario}</span>\`;
         item.addEventListener('click', () => fillCase(c, status));
         container.appendChild(item);
@@ -239,6 +250,15 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   async function fillCase(c, statusDiv) {
+    // MODE INFO (seleccionModelo-XX.html): no toquem el DOM, només indiquem
+    // al voluntari quin radio (EX31 vs EX32) ha de triar manualment. La
+    // pantalla de selecció no és prou estable per auto-clicar i a més volem
+    // que el voluntari faci la confirmació humana abans de continuar.
+    if (location.pathname.includes('seleccionModelo')) {
+      statusDiv.innerHTML = \`<div style="padding:8px;background:#F5F3FF;border:1px solid #A78BFA;border-radius:4px"><strong style="color:#7C3AED">📋 Tria \${escapeHtml(c.formulario)}</strong><br><span style="font-size:11px;color:#555">Cas: \${escapeHtml(c.nom)} \${escapeHtml(c.cognom1 || '')} · \${escapeHtml(c.viaLegal || '?')}</span><br><span style="font-size:11px;color:#555;margin-top:4px;display:block">Selecciona <strong>\${escapeHtml(c.formulario)}</strong> al radio i prem <strong>CONTINUAR</strong>. El panell apareixerà al formulari següent per omplir.</span></div>\`;
+      return;
+    }
+
     // Verifica form correcte
     const onForm = location.pathname.includes('EX31') ? 'EX31'
                  : location.pathname.includes('EX32') ? 'EX32' : '?';
@@ -261,7 +281,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         html += '</pre></details>';
       }
       statusDiv.innerHTML = html;
-      console.log('[Reus Refugi] fill results:', results);
+      console.log('[Venus] fill results:', results);
     } catch (e) {
       statusDiv.innerHTML = '<span style="color:#c00">Error: ' + escapeHtml(String(e)) + '</span>';
     }

@@ -299,6 +299,14 @@ function validateOne(
     return { status: 'invalid_format', received: v, expected: 'true or absent' };
   }
 
+  // Form-conditional fields: descActividadDecla3 només existeix al form
+  // EX-32 (DA 21ª arraigos). A EX-31 (DA 20ª PI) l'input ni es renderitza
+  // al DOM, així que la seva absència al payload és el comportament
+  // correcte (i el mapper l'omet per a EX-31).
+  if (v === undefined && name === 'descActividadDecla3' && body.tipoFormulario === 'EX31') {
+    return { status: 'ok', received: '<absent on EX-31>' };
+  }
+
   if (v === undefined) return { status: 'missing' };
 
   switch (kind.type) {

@@ -190,6 +190,7 @@ export function airtableToMercurio(
   const chkDecla3 = declaIntencio ? 'true' : undefined;
 
   const formulario = viaCfg.formulario;
+  const isEX32 = formulario === 'EX32';
 
   return {
     // ─── Header / form metadata ────────────────────────────
@@ -242,14 +243,17 @@ export function airtableToMercurio(
     _chkDecla1: 'on',
     chkDecla2: 'true',
     _chkDecla2: 'on',
-    ...(chkDecla3 ? { chkDecla3 } : {}),
+    // Bloc Decla3 (intenció d'activitat laboral) NO existeix al form EX-31
+    // (DA 20ª PI/asilo) — confirmat 2026-04-27 per inspecció DOM real
+    // (cas Dayner). Tant chkDecla3 com descActividadDecla3 només es
+    // serveixen quan formulario === 'EX32' (DA 21ª arraigos).
+    // descActividadDecla3 va DESPRÉS de chkDecla3 a la insertion order
+    // perquè a EX-32 Mercurio renderitza l'input al change handler del
+    // checkbox; si el handler fos async, la Phase 2-bis del userscript
+    // fa retry a 300ms.
+    ...(isEX32 && chkDecla3 ? { chkDecla3 } : {}),
     _chkDecla3: 'on',
-    // Camp dinàmic — només apareix al DOM si chkDecla3 està marcat.
-    // Va DESPRÉS del checkbox a la insertion order perquè el userscript
-    // itera Object.entries seqüencialment i Mercurio renderitza l'input
-    // al change handler del checkbox. Si el handler fos async i no
-    // arribéssim a temps, la Phase 2-bis del userscript fa retry a 300ms.
-    descActividadDecla3: activitatLaboral,
+    ...(isEX32 ? { descActividadDecla3: activitatLaboral } : {}),
     docsAutoriza: '',
     docsDeniega: '',
     _chkConsientoConsultaDocumentos: 'on',

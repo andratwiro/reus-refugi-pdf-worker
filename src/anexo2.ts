@@ -109,23 +109,66 @@ export async function fillAnexo2Pdf(
   // PERÒ: la plantilla PyPDF2+reportlab té widget annotations amb /P
   // references obsoletes (apunten a objects de pàgina que pdf-lib no troba
   // al getPages()). flatten() llavors llança "Could not find page for
-  // PDFRef N 0 R". La fix: abans de flatten, reconstruir els /P de cada
-  // annotation a partir de la pàgina que els conté al seu /Annots array
-  // — això garanteix que pdf-lib pot resoldre la pàgina del widget.
-  rebuildAnnotPageRefs(pdfDoc);
-  form.flatten();
+  // PDFRef N 0 R". La fix té 2 passes:
+  //   1. Reconstruir el /P de cada annotation a partir de la /Annots array
+  //      de la pàgina que la conté.
+  //   2. Per als widgets registrats al form que NO apareixen a cap
+  //      /Annots de cap pàgina (orphans), reroutejar el /P a la primera
+  //      pàgina. Anexo II és single-page; aquesta default és segura.
+  // Si flatten() encara falla, el catch loga TOTS els widgets amb el seu
+  // /P perquè el log de Cloudflare ens digui exactament quin camp falla.
+  rebuildAnnotPageRefs(pdfDoc, form);
+  try {
+    form.flatten();
+  } catch (flattenErr) {
+    console.error("[anexo2] flatten failed after /P rebuild:", flattenErr);
+    console.error("[anexo2] field/widget /P diagnostic dump:");
+    for (const field of form.getFields()) {
+      const widgets = field.acroField.getWidgets();
+      for (let i = 0; i < widgets.length; i++) {
+        const w = widgets[i];
+        const p = w.dict.get(PDFName.of("P"));
+        const pStr =
+          p instanceof PDFRef
+            ? `${p.objectNumber} ${p.generationNumber} R`
+            : String(p);
+        console.error(`  field="${field.getName()}" widget[${i}] /P=${pStr}`);
+      }
+    }
+    throw flattenErr;
+  }
 
   return await pdfDoc.save();
 }
 
 /**
- * Reconstrueix el /P de cada annotation perquè apunti a la pàgina que la
- * conté al seu /Annots. Necessari per plantilles generades amb PyPDF2/
- * reportlab que emeten /P references obsoletes que trenquen el flatten()
- * de pdf-lib.
+ * Reconstrueix els /P refs dels widget annotations perquè apuntin a una
+ * pàgina vàlida del page tree. Necessari per plantilles generades amb
+ * PyPDF2/reportlab que emeten /P references obsoletes que trenquen el
+ * flatten() de pdf-lib.
+ *
+ * Pass 1: per a cada page.node.Annots, set /P de l'annotation a page.ref
+ *   (cobreix els widgets que SÍ són a /Annots d'alguna pàgina).
+ *
+ * Pass 2: itera form.getFields() per trobar widgets registrats al form
+ *   que tot i així tenen un /P que no apunta a cap pàgina vàlida (orphans).
+ *   Els re-route a firstPage. Segur per a templates single-page.
  */
-function rebuildAnnotPageRefs(pdfDoc: PDFDocument): void {
-  for (const page of pdfDoc.getPages()) {
+function rebuildAnnotPageRefs(
+  pdfDoc: PDFDocument,
+  form: ReturnType<PDFDocument["getForm"]>,
+): void {
+  const pages = pdfDoc.getPages();
+  if (pages.length === 0) return;
+  const firstPage = pages[0];
+  const validRefs = new Set<string>(
+    pages.map((p) => `${p.ref.objectNumber} ${p.ref.generationNumber}`),
+  );
+  const refKey = (r: PDFRef): string =>
+    `${r.objectNumber} ${r.generationNumber}`;
+
+  // Pass 1: rebuild /P from page /Annots membership
+  for (const page of pages) {
     const annots = page.node.lookup(PDFName.of("Annots"));
     if (!(annots instanceof PDFArray)) continue;
     for (let i = 0; i < annots.size(); i++) {
@@ -138,6 +181,22 @@ function rebuildAnnotPageRefs(pdfDoc: PDFDocument): void {
         annotDict.set(PDFName.of("P"), page.ref);
       }
     }
+  }
+
+  // Pass 2: orphan form widgets — /P is invalid even after Pass 1
+  let orphans = 0;
+  for (const field of form.getFields()) {
+    for (const widget of field.acroField.getWidgets()) {
+      const pVal = widget.dict.get(PDFName.of("P"));
+      const isValid = pVal instanceof PDFRef && validRefs.has(refKey(pVal));
+      if (!isValid) {
+        widget.dict.set(PDFName.of("P"), firstPage.ref);
+        orphans++;
+      }
+    }
+  }
+  if (orphans > 0) {
+    console.log(`[anexo2] rebuilt /P for ${orphans} orphan widget(s) → firstPage`);
   }
 }
 

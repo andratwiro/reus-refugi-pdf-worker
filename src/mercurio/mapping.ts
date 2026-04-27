@@ -28,15 +28,6 @@ export interface PresentadorConfig {
   email: string;
 }
 
-/** Default presentador config — Reus Refugi entity defaults from HAR (REDACTED) */
-export const REUS_REFUGI_DEFAULT_PRESENTADOR: PresentadorConfig = {
-  nombre: 'REDACTED',
-  nie: 'REDACTED',
-  tipoDoc: 'NF',
-  mobil: '663305755',
-  email: 'regularitzacio@reusrefugi.cat',
-};
-
 /**
  * Map "Via legal" (Airtable singleSelect) → Mercurio form & codes.
  *
@@ -165,7 +156,7 @@ function fStr(rec: AirtableCase, name: string): string {
  */
 export function airtableToMercurio(
   rec: AirtableCase,
-  presentador: PresentadorConfig = REUS_REFUGI_DEFAULT_PRESENTADOR,
+  presentador: PresentadorConfig,
   refRec?: AirtableCase
 ): Record<string, string> {
   const viaLegal = fStr(rec, 'Via legal');

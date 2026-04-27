@@ -19,8 +19,16 @@ enabled = true
 # Secrets — NO van aquí. Configurar via:
 #   npx wrangler secret put AIRTABLE_TOKEN
 #   npx wrangler secret put SHARED_SECRET
-#   npx wrangler secret put GAS_WEBAPP_URL      ← nou
-#   npx wrangler secret put GAS_SHARED_SECRET   ← nou
+#   npx wrangler secret put GAS_WEBAPP_URL
+#   npx wrangler secret put GAS_SHARED_SECRET
+#
+# Presentador config (dades personals del representant acreditat — NO les
+# fiquis a [vars]; aquest fitxer es committeja al repo públic):
+#   npx wrangler secret put PRESENTADOR_NOMBRE   # "COGNOM1 COGNOM2 NOM" majúscules
+#   npx wrangler secret put PRESENTADOR_NIE
+#   npx wrangler secret put PRESENTADOR_TIPODOC  # NF (NIE) | NV (DNI) | PA (passaport)
+#   npx wrangler secret put PRESENTADOR_MOBIL
+#   npx wrangler secret put PRESENTADOR_EMAIL
 #
 # (O via dashboard: Workers → reus-refugi-pdf-worker → Settings → Variables and Secrets)
 

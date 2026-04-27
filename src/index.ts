@@ -12,7 +12,7 @@ import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
 import { CASOS } from "./mappings";
-import { airtableToMercurio, getFormulario, type AirtableCase } from "./mercurio/mapping";
+import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 
 const USERSCRIPT_VERSION = "1.3.3";
@@ -23,6 +23,14 @@ export interface Env {
   SHARED_SECRET: string;
   GAS_WEBAPP_URL: string;
   GAS_SHARED_SECRET: string;
+
+  // Presentador config (secrets — dades personals del representant acreditat
+  // de l'entitat. Configurar via `npx wrangler secret put PRESENTADOR_*`).
+  PRESENTADOR_NOMBRE: string;
+  PRESENTADOR_NIE: string;
+  PRESENTADOR_TIPODOC: string; // 'NF' | 'NV' | 'PA'
+  PRESENTADOR_MOBIL: string;
+  PRESENTADOR_EMAIL: string;
 
   // Public vars (wrangler.toml)
   AIRTABLE_BASE_ID: string;
@@ -450,6 +458,15 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
     return corsJson({ error: "missing or invalid 'caso' param" }, request, 400);
   }
 
+  const presentador = buildPresentador(env);
+  if (!presentador) {
+    return corsJson(
+      { error: "PRESENTADOR_* secrets not configured. See README → Setup." },
+      request,
+      500,
+    );
+  }
+
   const at = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
   // Llegim per NAMES (mapper compartit treballa per nom)
   const rec = await at.getRecord(env.CASOS_TABLE_ID, recordId, { byFieldId: false });
@@ -468,7 +485,7 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
     }
   }
 
-  const payload = airtableToMercurio(recAsCase, undefined, refRec);
+  const payload = airtableToMercurio(recAsCase, presentador, refRec);
   const formulario = getFormulario(recAsCase);
 
   return corsJson({
@@ -484,6 +501,24 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
 function checkAuth(request: Request, env: Env): boolean {
   const auth = request.headers.get("Authorization") || "";
   return auth === `Bearer ${env.SHARED_SECRET}`;
+}
+
+/**
+ * Build PresentadorConfig from env secrets. Returns null if any required
+ * field is missing — el handler retorna 500 amb missatge clar.
+ */
+function buildPresentador(env: Env): PresentadorConfig | null {
+  const { PRESENTADOR_NOMBRE, PRESENTADOR_NIE, PRESENTADOR_TIPODOC, PRESENTADOR_MOBIL, PRESENTADOR_EMAIL } = env;
+  if (!PRESENTADOR_NOMBRE || !PRESENTADOR_NIE || !PRESENTADOR_TIPODOC || !PRESENTADOR_MOBIL || !PRESENTADOR_EMAIL) {
+    return null;
+  }
+  return {
+    nombre: PRESENTADOR_NOMBRE,
+    nie: PRESENTADOR_NIE,
+    tipoDoc: PRESENTADOR_TIPODOC as PresentadorConfig["tipoDoc"],
+    mobil: PRESENTADOR_MOBIL,
+    email: PRESENTADOR_EMAIL,
+  };
 }
 
 function unauthorized(extraHeaders: Record<string, string> = {}): Response {

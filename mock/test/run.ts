@@ -16,7 +16,16 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 // Importa el mapper del Worker (font canònica). El mock NO duplica codi.
-import { airtableToMercurio, type AirtableCase } from '../../src/mercurio/mapping.js';
+import { airtableToMercurio, type AirtableCase, type PresentadorConfig } from '../../src/mercurio/mapping.js';
+
+// Stub presentador per a tests — valors fake, mai surten de localhost.
+const TEST_PRESENTADOR: PresentadorConfig = {
+  nombre: 'TEST PRESENTADOR',
+  nie: '00000000T',
+  tipoDoc: 'NF',
+  mobil: '600000000',
+  email: 'test@example.org',
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = resolve(__dirname, 'fixtures');
@@ -64,7 +73,7 @@ async function runOne(tc: TestCase): Promise<RunResult> {
     ? JSON.parse(readFileSync(join(FIXTURES_DIR, tc.refFixture), 'utf-8'))
     : undefined;
 
-  const payload = airtableToMercurio(rec, undefined, refRec);
+  const payload = airtableToMercurio(rec, TEST_PRESENTADOR, refRec);
   const body = new URLSearchParams(payload).toString();
 
   const res = await fetch(`${MOCK_URL}/mercurio/salvarSolicitud.html?format=json`, {

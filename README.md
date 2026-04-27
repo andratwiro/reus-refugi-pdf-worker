@@ -248,7 +248,20 @@ wrangler.toml          ← config del Worker (vars públiques, assets binding)
 
 ## Notes per a entitats que vulguin replicar
 
-Aquest codi **no és genèric**. Conté hard-codings específics de Reus Refugi:
+### Plantilla pública d'Airtable
+
+L'esquema de Venus està publicat com a **plantilla pública** a Airtable Universe:
+
+🔗 **[Venus — Plantilla regularització (RD 1155/2024)](https://www.airtable.com/universe/expouXQDj6Qd9pe8L/venus-plantilla-regularitzacio-rd-3162026)**
+
+Pots clonar-la al teu workspace amb un clic — t'estalvies recrear taules, camps,
+vistes i automatitzacions des de zero. Després només cal:
+
+1. Connectar el formulari de Tally (o el teu propi punt d'entrada) a la taula `Casos`.
+2. Substituir els IDs de base i taula a `wrangler.toml` pels de la teva còpia.
+3. Configurar els secrets de l'entitat (`PRESENTADOR_*`).
+
+### Hard-codings específics
 
 - El **presentador** (representant acreditat que signa les sol·licituds) es
   configura via els 5 secrets `PRESENTADOR_*`. Cada entitat ha de fer-ho amb
@@ -256,9 +269,9 @@ Aquest codi **no és genèric**. Conté hard-codings específics de Reus Refugi:
 - `wrangler.toml` apunta a la base d'Airtable Venus de Reus Refugi
   (`appWuXncpGWaFTR4M`). Cada entitat té la seva pròpia base; cal canviar tots
   els IDs.
-- L'esquema d'Airtable (camps, taules, opcions de singleSelect com "Via legal")
-  reflecteix el flux operatiu de Reus Refugi i s'ha anat construint segons les
-  necessitats dels voluntaris. No és un model "estàndard".
+- L'esquema d'Airtable reflecteix el flux operatiu de Reus Refugi i s'ha anat
+  construint segons les necessitats dels voluntaris. La plantilla pública és
+  un punt de partida raonable, però potser voldràs adaptar-la.
 
 Si treballes en una entitat similar i vols adaptar això, obre un issue —
 mirarem d'extreure les peces reutilitzables (sobretot `mercurio/catalogs.ts`,

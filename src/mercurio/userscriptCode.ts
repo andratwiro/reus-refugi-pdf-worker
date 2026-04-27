@@ -197,65 +197,339 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   // ─── UI ─────────────────────────────────────────────────────────────
+  // Inline SVGs (heart, search, info, arrow). Stroke/fill colors set via CSS
+  // currentColor on parent so re-styling només requereix canviar 'color'.
+  const ICON_HEART = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+  const ICON_SEARCH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+  const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+  const ICON_ARROW = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+
+  // ─── Styles (scoped) ───────────────────────────────────────────────
+  // Tot prefixat .venus-* + reset agressiu per aïllar de l'CSS legacy de
+  // Mercurio (jQuery UI, etc.). Inter via Google Fonts amb fallback system.
+  function injectStyles() {
+    if (document.getElementById('venus-fonts')) return;
+    const link = document.createElement('link');
+    link.id = 'venus-fonts';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(link);
+
+    const style = document.createElement('style');
+    style.id = 'venus-styles';
+    style.textContent = \`
+      .venus-modal, .venus-modal * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        line-height: 1.4;
+        color: #1A1424;
+      }
+      .venus-modal {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 99999;
+        width: 380px;
+        background: #FFFFFF;
+        border: 1px solid #E6E1EE;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(26, 20, 36, 0.08);
+        overflow: hidden;
+      }
+      .venus-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #E6E1EE;
+      }
+      .venus-header .venus-heart { color: #7C3AED; display: flex; }
+      .venus-header .venus-title { font-size: 16px; font-weight: 700; color: #1A1424; }
+      .venus-header .venus-sep { color: #B8B0C7; font-weight: 400; font-size: 16px; }
+      .venus-header .venus-subtitle { font-size: 14px; font-weight: 400; color: #6B607E; flex: 1; }
+      .venus-header .venus-count { font-size: 13px; color: #6B607E; font-variant-numeric: tabular-nums; }
+
+      .venus-search-wrap {
+        position: relative;
+        padding: 12px 16px 8px;
+      }
+      .venus-search-icon {
+        position: absolute;
+        left: 28px;
+        top: 50%;
+        transform: translateY(-25%);
+        color: #6B607E;
+        display: flex;
+        pointer-events: none;
+      }
+      .venus-search-input {
+        width: 100%;
+        padding: 14px 14px 14px 42px;
+        font-size: 15px;
+        font-weight: 400;
+        color: #1A1424;
+        background: #F6F3FB;
+        border: 1.5px solid #E6E1EE;
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 120ms, box-shadow 120ms;
+      }
+      .venus-search-input::placeholder { color: #6B607E; }
+      .venus-search-input:focus {
+        border-color: #7C3AED;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+      }
+
+      .venus-results {
+        max-height: 360px;
+        overflow-y: auto;
+      }
+      .venus-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        cursor: pointer;
+        background: #FFFFFF;
+        border: none;
+        width: 100%;
+        text-align: left;
+        transition: background 100ms;
+      }
+      .venus-row:hover, .venus-row:focus-visible {
+        background: #F4EFFB;
+        outline: none;
+      }
+      .venus-row + .venus-row { border-top: 1px solid #F0ECF5; }
+
+      .venus-badge {
+        flex: 0 0 auto;
+        width: 56px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        border-radius: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .venus-badge-ex31 { background: #D6F0EE; color: #0E6F6F; }
+      .venus-badge-ex32 { background: #FCE8C9; color: #8A4B00; }
+
+      .venus-row-content {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .venus-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1A1424;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .venus-meta {
+        font-size: 13px;
+        font-weight: 400;
+        color: #6B607E;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .venus-meta .venus-id { font-variant-numeric: tabular-nums; }
+      .venus-meta .venus-dot { margin: 0 6px; color: #B8B0C7; }
+
+      .venus-row-arrow {
+        flex: 0 0 auto;
+        color: #6B607E;
+        opacity: 0;
+        transition: opacity 100ms;
+        display: flex;
+      }
+      .venus-row:hover .venus-row-arrow { opacity: 1; }
+
+      .venus-empty {
+        padding: 24px 16px;
+        text-align: center;
+        font-size: 13px;
+        color: #6B607E;
+      }
+
+      .venus-status:empty { display: none; }
+      .venus-status {
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #6B607E;
+        border-top: 1px solid #E6E1EE;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+      .venus-status .venus-status-ok { color: #0E6F6F; font-weight: 600; }
+      .venus-status .venus-status-warn { color: #8A4B00; font-weight: 600; }
+      .venus-status .venus-status-err { color: #B91C1C; font-weight: 600; }
+      .venus-status details { margin-top: 6px; }
+      .venus-status summary { cursor: pointer; color: #7C3AED; font-size: 12px; }
+      .venus-status pre {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 11px;
+        color: #1A1424;
+        white-space: pre-wrap;
+        margin-top: 4px;
+        padding: 6px 8px;
+        background: #F6F3FB;
+        border-radius: 6px;
+      }
+      .venus-status .venus-info-card {
+        padding: 10px 12px;
+        background: #F4EFFB;
+        border: 1px solid #E6E1EE;
+        border-radius: 8px;
+        color: #1A1424;
+      }
+      .venus-status .venus-info-card .venus-info-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #7C3AED;
+        margin-bottom: 4px;
+      }
+
+      .venus-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: #FAF8FD;
+        border-top: 1px solid #E6E1EE;
+        font-size: 13px;
+        color: #6B607E;
+      }
+      .venus-footer .venus-footer-icon { color: #6B607E; display: flex; }
+    \`;
+    document.head.appendChild(style);
+  }
+
   function injectPanel() {
+    injectStyles();
+
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#fff;border:2px solid #A78BFA;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-family:system-ui,sans-serif;font-size:13px;width:280px';
+    wrap.className = 'venus-modal';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-label', 'Venus — Auto-emplenar formulari Mercurio');
     wrap.innerHTML = \`
-      <div style="font-weight:600;color:#7C3AED;margin-bottom:8px">💜 Venus — Auto-Fill</div>
-      <input id="rr-search" type="text" placeholder="Cerca cas (nom o cognom)…" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ccc;border-radius:4px;margin-bottom:6px">
-      <div id="rr-results" style="max-height:240px;overflow:auto"></div>
-      <div id="rr-status" style="margin-top:8px;font-size:11px;color:#777;max-height:200px;overflow:auto"></div>
+      <div class="venus-header">
+        <span class="venus-heart">\${ICON_HEART}</span>
+        <span class="venus-title">Venus</span>
+        <span class="venus-sep">—</span>
+        <span class="venus-subtitle">Auto-emplenar formulari</span>
+        <span class="venus-count" id="venus-count"></span>
+      </div>
+      <div class="venus-search-wrap">
+        <span class="venus-search-icon">\${ICON_SEARCH}</span>
+        <input id="venus-search" type="text" class="venus-search-input" placeholder="Cerca per nom o cognom…" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="venus-results" class="venus-results"></div>
+      <div id="venus-status" class="venus-status"></div>
+      <div class="venus-footer">
+        <span class="venus-footer-icon">\${ICON_INFO}</span>
+        <span id="venus-footer-text">\${footerText()}</span>
+      </div>
     \`;
     document.body.appendChild(wrap);
 
-    const search = wrap.querySelector('#rr-search');
-    const results = wrap.querySelector('#rr-results');
-    const status = wrap.querySelector('#rr-status');
-
-    // Hint inicial diferent segons pantalla: a la sel screen el panell és
-    // info-only (no ompli res), a EX31/EX32 ompli els 144 camps.
-    if (location.pathname.includes('seleccionModelo')) {
-      status.innerHTML = '<em style="color:#7C3AED">Clica un cas per saber quin formulari triar (EX31/EX32).</em>';
-    }
+    const search = wrap.querySelector('#venus-search');
+    const results = wrap.querySelector('#venus-results');
+    const status = wrap.querySelector('#venus-status');
+    const count = wrap.querySelector('#venus-count');
 
     let timer = null;
     search.addEventListener('input', () => {
       clearTimeout(timer);
-      timer = setTimeout(() => doSearch(search.value, results, status), 250);
+      timer = setTimeout(() => doSearch(search.value, results, status, count), 250);
     });
-    // Cerca inicial buida = 5 últims casos
-    doSearch('', results, status);
+    // Cerca inicial buida = darrers casos
+    doSearch('', results, status, count);
   }
 
-  async function doSearch(q, container, status) {
-    container.innerHTML = '<em style="font-size:11px;color:#999">Cercant…</em>';
+  function footerText() {
+    return location.pathname.includes('seleccionModelo')
+      ? 'Clica un cas per saber quin formulari triar (EX31/EX32)'
+      : 'Clica un cas per emplenar el formulari automàticament';
+  }
+
+  // Parseig: "RR-003-DAYNER--ACEVEDO" → "RR-003"
+  function shortIdCas(idCas) {
+    const m = String(idCas || '').match(/^(RR-\\d+)/);
+    return m ? m[1] : (idCas || '');
+  }
+  // Parseig: "DA 20ª – Sol·licitant PI" → ["DA 20ª", "Sol·licitant PI"]
+  function splitViaLegal(viaLegal) {
+    const s = String(viaLegal || '');
+    const idx = s.indexOf(' – ');
+    if (idx === -1) return [s, ''];
+    return [s.slice(0, idx), s.slice(idx + 3)];
+  }
+
+  async function doSearch(q, container, status, count) {
+    container.innerHTML = '<div class="venus-empty">Cercant…</div>';
+    count.textContent = '';
     try {
       const data = await workerGet('/mercurio/cases?q=' + encodeURIComponent(q || ''));
       const cases = data.cases || [];
       if (cases.length === 0) {
-        container.innerHTML = '<em style="font-size:11px;color:#999">Cap match.</em>';
+        container.innerHTML = '<div class="venus-empty">Cap cas trobat.</div>';
+        count.textContent = '';
         return;
       }
+      count.textContent = cases.length + (cases.length === 1 ? ' cas' : ' casos');
       container.innerHTML = '';
       for (const c of cases) {
-        const item = document.createElement('button');
-        item.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;margin-bottom:3px;border:1px solid #DDD6FE;background:#F5F3FF;border-radius:4px;cursor:pointer;font-size:12px';
-        item.innerHTML = \`<strong>\${escapeHtml(c.nom)} \${escapeHtml(c.cognom1 || '')}</strong> · <span style="color:#666">\${escapeHtml(c.viaLegal || '?')}</span><br><span style="color:#999;font-size:10px">\${escapeHtml(c.idCas)} · \${c.formulario}</span>\`;
-        item.addEventListener('click', () => fillCase(c, status));
-        container.appendChild(item);
+        const row = document.createElement('button');
+        row.className = 'venus-row';
+        row.type = 'button';
+        const badgeClass = c.formulario === 'EX31' ? 'venus-badge-ex31' : 'venus-badge-ex32';
+        const [da, tag] = splitViaLegal(c.viaLegal);
+        const fullName = (escapeHtml(c.nom || '') + ' ' + escapeHtml(c.cognom1 || '')).trim() || '—';
+        const metaParts = [
+          \`<span class="venus-id">\${escapeHtml(shortIdCas(c.idCas))}</span>\`,
+          escapeHtml(da || '?'),
+          tag ? escapeHtml(tag) : null,
+        ].filter(Boolean);
+        const metaHtml = metaParts.join('<span class="venus-dot">·</span>');
+        row.innerHTML = \`
+          <span class="venus-badge \${badgeClass}">\${escapeHtml(c.formulario || '')}</span>
+          <span class="venus-row-content">
+            <span class="venus-name">\${fullName}</span>
+            <span class="venus-meta">\${metaHtml}</span>
+          </span>
+          <span class="venus-row-arrow">\${ICON_ARROW}</span>
+        \`;
+        row.addEventListener('click', () => fillCase(c, status));
+        container.appendChild(row);
       }
     } catch (e) {
-      container.innerHTML = '<span style="color:#c00;font-size:11px">Error: ' + escapeHtml(String(e)) + '</span>';
+      container.innerHTML = '<div class="venus-empty"><span class="venus-status-err">Error:</span> ' + escapeHtml(String(e)) + '</div>';
+      count.textContent = '';
     }
   }
 
   async function fillCase(c, statusDiv) {
     // MODE INFO (seleccionModelo-XX.html): no toquem el DOM, només indiquem
-    // al voluntari quin radio (EX31 vs EX32) ha de triar manualment. La
-    // pantalla de selecció no és prou estable per auto-clicar i a més volem
-    // que el voluntari faci la confirmació humana abans de continuar.
+    // al voluntari quin radio (EX31 vs EX32) ha de triar manualment.
     if (location.pathname.includes('seleccionModelo')) {
-      statusDiv.innerHTML = \`<div style="padding:8px;background:#F5F3FF;border:1px solid #A78BFA;border-radius:4px"><strong style="color:#7C3AED">📋 Tria \${escapeHtml(c.formulario)}</strong><br><span style="font-size:11px;color:#555">Cas: \${escapeHtml(c.nom)} \${escapeHtml(c.cognom1 || '')} · \${escapeHtml(c.viaLegal || '?')}</span><br><span style="font-size:11px;color:#555;margin-top:4px;display:block">Selecciona <strong>\${escapeHtml(c.formulario)}</strong> al radio i prem <strong>CONTINUAR</strong>. El panell apareixerà al formulari següent per omplir.</span></div>\`;
+      statusDiv.innerHTML = \`
+        <div class="venus-info-card">
+          <div class="venus-info-title">Tria \${escapeHtml(c.formulario)}</div>
+          <div>Cas: <strong>\${escapeHtml(c.nom || '')} \${escapeHtml(c.cognom1 || '')}</strong> · \${escapeHtml(c.viaLegal || '?')}</div>
+          <div style="margin-top:6px">Selecciona <strong>\${escapeHtml(c.formulario)}</strong> al radio i prem <strong>CONTINUAR</strong>. El panell apareixerà al formulari següent per emplenar-lo.</div>
+        </div>
+      \`;
       return;
     }
 
@@ -263,27 +537,30 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     const onForm = location.pathname.includes('EX31') ? 'EX31'
                  : location.pathname.includes('EX32') ? 'EX32' : '?';
     if (c.formulario !== onForm) {
-      statusDiv.innerHTML = \`<strong style="color:#c00">⚠️ Cas és per \${c.formulario}, ets a \${onForm}.</strong><br>Tornar enrere i triar \${c.formulario} al desplegable.\`;
+      statusDiv.innerHTML = \`<span class="venus-status-err">⚠️ Cas és per \${escapeHtml(c.formulario)}, ets a \${escapeHtml(onForm)}.</span> Torna enrere i tria \${escapeHtml(c.formulario)}.\`;
       return;
     }
-    statusDiv.innerHTML = '<em>Carregant payload…</em>';
+    statusDiv.innerHTML = 'Carregant payload…';
     try {
       const data = await workerGet('/mercurio/payload?caso=' + encodeURIComponent(c.id));
-      statusDiv.innerHTML = '<em>Omplint ' + escapeHtml(c.idCas) + '… (cascades AJAX 1-2s)</em>';
+      statusDiv.innerHTML = 'Emplenant ' + escapeHtml(shortIdCas(c.idCas)) + '… <span style="color:#B8B0C7">(cascades AJAX 1-2s)</span>';
       const results = await fillAll(data.payload);
       const ok = results.filter(r => r.status === 'ok' || r.status === 'ok_cascade').length;
       const skipped = results.filter(r => r.status === 'skipped').length;
       const issues = results.filter(r => !['ok', 'ok_cascade', 'skipped'].includes(r.status));
-      let html = '<strong>' + ok + ' OK</strong> · ' + skipped + ' skip · ' + issues.length + ' issues';
+      let html = \`<span class="venus-status-ok">\${ok} OK</span> · \${skipped} skip · \`;
+      html += issues.length
+        ? \`<span class="venus-status-warn">\${issues.length} issues</span>\`
+        : \`<span>0 issues</span>\`;
       if (issues.length) {
-        html += '<details style="margin-top:6px"><summary>Detall</summary><pre style="font-size:10px;white-space:pre-wrap;margin:4px 0 0">';
-        for (const r of issues) html += r.name + ': ' + r.status + (r.value ? ' ("' + r.value + '")' : '') + '\\n';
+        html += '<details><summary>Detall</summary><pre>';
+        for (const r of issues) html += escapeHtml(r.name) + ': ' + escapeHtml(r.status) + (r.value ? ' ("' + escapeHtml(String(r.value)) + '")' : '') + '\\n';
         html += '</pre></details>';
       }
       statusDiv.innerHTML = html;
       console.log('[Venus] fill results:', results);
     } catch (e) {
-      statusDiv.innerHTML = '<span style="color:#c00">Error: ' + escapeHtml(String(e)) + '</span>';
+      statusDiv.innerHTML = '<span class="venus-status-err">Error:</span> ' + escapeHtml(String(e));
     }
   }
 

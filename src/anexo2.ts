@@ -15,10 +15,16 @@
  * del multipleSelect es matchen tant per option ID com per name (vegeu
  * VULNERABILITAT_CASILLA al mappings.ts).
  *
- * No flatten — Rob vol poder editar manualment si cal.
+ * Flatten al final: la plantilla original (PyPDF2+reportlab) genera
+ * appearance streams pels checkboxes que Chrome/Firefox/Samsung/Drive
+ * NO renderitzen — només Apple Preview / Adobe que regeneren al vol.
+ * flatten() regenera els streams una vegada amb pdf-lib i els bake-eja
+ * com a contingut de pàgina, garantint visibilitat universal. Trade-off:
+ * el PDF resultant no és editable post-generació, acceptable perquè
+ * és un certificat signat (RECEX 2026-04-27 — vegeu commit history).
  */
 
-import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import {
   ANEXO2_AIRTABLE_FIELDS as A,
   ANEXO2_PDF_FIELDS as P,
@@ -87,18 +93,27 @@ export async function fillAnexo2Pdf(
   // ── Fecha (avui, Europe/Madrid) ──────────────────────────────────────────
   setText(P.dataAvui, todayInMadrid());
 
-  // ── Fix Firefox/Airtable preview ─────────────────────────────────────────
-  // La plantilla ve amb NeedAppearances=true. Això diu al visor que regeneri
-  // les aparences al vol. Firefox pdf.js i l'Airtable preview ho respecten
-  // i regeneren, però amb aquesta plantilla (generada amb PyPDF2+reportlab)
-  // la regeneració surt mal posicionada i els camps nous es veuen buits.
-  // Adobe i la majoria d'altres visors ignoren el flag i fan servir els streams
-  // directament — per això el PDF descarregat es veu bé.
+  // ── Flatten — visibilitat universal a TOTS els visors ────────────────────
+  // Anteriorment forçàvem NeedAppearances=false per a que els visors usessin
+  // els appearance streams generats per pdf-lib. Funcionava a Adobe i Apple
+  // Preview, però Chrome / Firefox / Samsung PDF / Google Drive no renderitzen
+  // les Casillas 54-64 com a marcades — el data dictionary té el valor "Yes"
+  // però l'appearance stream del checkbox no es mostra (regeneració al vol
+  // falla a aquesta plantilla PyPDF2+reportlab, o l'On state appearance és
+  // buit/incorrecte).
   //
-  // Forçant el flag a false, indiquem a tots els visors que facin servir els
-  // appearance streams que pdf-lib ha generat. Verificat que funciona a
-  // poppler (comportament similar a pdf.js) — els camps apareixen.
-  form.acroForm.dict.set(PDFName.of("NeedAppearances"), PDFBool.False);
+  // flatten() resol això de forma definitiva:
+  //   1. Regenera els appearance streams una vegada (amb la font default
+  //      Helvetica de pdf-lib, que té suport WinAnsi → accents espanyols OK)
+  //   2. Els converteix en contingut de pàgina (gràfics dibuixats) i
+  //      elimina els camps de form completament del document
+  //   3. Resultat: PDF sense forms, només contingut estàtic — visible a
+  //      qualsevol visor, sense dependre de regeneració al vol.
+  //
+  // Trade-off: el PDF resultant ja no permet edició manual del form. Per
+  // un certificat de vulnerabilitat signat/segellat per RECEX, això és
+  // el comportament correcte (no s'ha de poder modificar post-emissió).
+  form.flatten();
 
   return await pdfDoc.save();
 }

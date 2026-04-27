@@ -41,7 +41,7 @@ Tally  →  Venus (Airtable)  ─┬─→  Informe de vulnerabilitat (PDF) + dr
 > La resta del Worker (dossiers EX-31/EX-32 PDF, proxy Gmail) són accessoris.
 > El que de debò aporta valor avui és això:
 
-### 🩺 Omplir informes de vulnerabilitat — **high return**, en producció
+### 🩺 Omplir informes de vulnerabilitat — en producció
 
 `POST /anexo2` — el voluntari prem un botó a la taula *Informes de Vulnerabilitat*
 d'Airtable i, en pocs segons, es genera un **certificat de vulnerabilitat**
@@ -59,7 +59,7 @@ a tot arreu (Adobe, Chrome, Drive, Samsung Notes…). Vegeu
 [`src/anexo2.ts`](src/anexo2.ts) per la lògica de Strategy A — flatten manual,
 sense AcroForm.
 
-### 🤖 Omplir Mercurio automàticament — **beta**, molt molt sucós
+### 🤖 Omplir Mercurio automàticament — **beta**
 
 [Mercurio](https://mercurio.delegaciondelgobierno.gob.es) és la plataforma
 oficial per presentar EX-31 i EX-32 telemàticament: ~144 camps de formulari

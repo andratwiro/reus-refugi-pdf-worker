@@ -199,7 +199,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   // ─── UI ─────────────────────────────────────────────────────────────
   // Inline SVGs (heart, search, info, arrow). Stroke/fill colors set via CSS
   // currentColor on parent so re-styling només requereix canviar 'color'.
-  const ICON_HEART = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+  const ICON_HEART = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
   const ICON_SEARCH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
   const ICON_INFO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
   const ICON_ARROW = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
@@ -217,16 +217,17 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
     const style = document.createElement('style');
     style.id = 'venus-styles';
+    // NB: tots els selectors interns prefixats amb .venus-modal per garantir
+    // (0,2,0) d'especificitat — supera el reset universal '.venus-modal *'
+    // (0,1,1) i evita que els resets de Mercurio (jQuery UI / antic) afectin.
+    // El reset universal NO toca 'color' per deixar que els SVG heretin del
+    // span pare via currentColor (cor púrpura, lupa gris, etc.).
     style.textContent = \`
-      .venus-modal, .venus-modal * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
+      .venus-modal {
         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 14px;
         line-height: 1.4;
         color: #1A1424;
-      }
-      .venus-modal {
         position: fixed;
         top: 16px;
         right: 16px;
@@ -238,37 +239,44 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         box-shadow: 0 8px 24px rgba(26, 20, 36, 0.08);
         overflow: hidden;
       }
-      .venus-header {
+      .venus-modal, .venus-modal *, .venus-modal *::before, .venus-modal *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      .venus-modal .venus-header {
         display: flex;
         align-items: center;
         gap: 8px;
         padding: 14px 16px;
         border-bottom: 1px solid #E6E1EE;
       }
-      .venus-header .venus-heart { color: #7C3AED; display: flex; }
-      .venus-header .venus-title { font-size: 16px; font-weight: 700; color: #1A1424; }
-      .venus-header .venus-sep { color: #B8B0C7; font-weight: 400; font-size: 16px; }
-      .venus-header .venus-subtitle { font-size: 14px; font-weight: 400; color: #6B607E; flex: 1; }
-      .venus-header .venus-count { font-size: 13px; color: #6B607E; font-variant-numeric: tabular-nums; }
+      .venus-modal .venus-heart { color: #7C3AED; display: flex; }
+      .venus-modal .venus-title { font-size: 16px; font-weight: 700; color: #1A1424; }
+      .venus-modal .venus-sep { color: #B8B0C7; font-weight: 400; font-size: 16px; }
+      .venus-modal .venus-subtitle { font-size: 14px; font-weight: 400; color: #6B607E; flex: 1; }
+      .venus-modal .venus-count { font-size: 13px; color: #6B607E; font-variant-numeric: tabular-nums; }
 
-      .venus-search-wrap {
+      .venus-modal .venus-search-wrap {
         position: relative;
         padding: 12px 16px 8px;
       }
-      .venus-search-icon {
+      .venus-modal .venus-search-icon {
         position: absolute;
         left: 28px;
         top: 50%;
-        transform: translateY(-25%);
+        transform: translateY(-50%);
         color: #6B607E;
         display: flex;
         pointer-events: none;
       }
-      .venus-search-input {
+      .venus-modal .venus-search-input {
+        display: block;
         width: 100%;
         padding: 14px 14px 14px 42px;
         font-size: 15px;
         font-weight: 400;
+        font-family: inherit;
         color: #1A1424;
         background: #F6F3FB;
         border: 1.5px solid #E6E1EE;
@@ -276,17 +284,17 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         outline: none;
         transition: border-color 120ms, box-shadow 120ms;
       }
-      .venus-search-input::placeholder { color: #6B607E; }
-      .venus-search-input:focus {
+      .venus-modal .venus-search-input::placeholder { color: #6B607E; opacity: 1; }
+      .venus-modal .venus-search-input:focus {
         border-color: #7C3AED;
         box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
       }
 
-      .venus-results {
+      .venus-modal .venus-results {
         max-height: 360px;
         overflow-y: auto;
       }
-      .venus-row {
+      .venus-modal .venus-row {
         display: flex;
         align-items: center;
         gap: 14px;
@@ -296,15 +304,19 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         border: none;
         width: 100%;
         text-align: left;
+        font-family: inherit;
+        font-size: 14px;
+        color: inherit;
         transition: background 100ms;
       }
-      .venus-row:hover, .venus-row:focus-visible {
+      .venus-modal .venus-row:hover,
+      .venus-modal .venus-row:focus-visible {
         background: #F4EFFB;
         outline: none;
       }
-      .venus-row + .venus-row { border-top: 1px solid #F0ECF5; }
+      .venus-modal .venus-row + .venus-row { border-top: 1px solid #F0ECF5; }
 
-      .venus-badge {
+      .venus-modal .venus-badge {
         flex: 0 0 auto;
         width: 56px;
         height: 40px;
@@ -317,17 +329,17 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         border-radius: 8px;
         font-variant-numeric: tabular-nums;
       }
-      .venus-badge-ex31 { background: #D6F0EE; color: #0E6F6F; }
-      .venus-badge-ex32 { background: #FCE8C9; color: #8A4B00; }
+      .venus-modal .venus-badge-ex31 { background: #D6F0EE; color: #0E6F6F; }
+      .venus-modal .venus-badge-ex32 { background: #FCE8C9; color: #8A4B00; }
 
-      .venus-row-content {
+      .venus-modal .venus-row-content {
         flex: 1 1 auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
         gap: 2px;
       }
-      .venus-name {
+      .venus-modal .venus-name {
         font-size: 16px;
         font-weight: 600;
         color: #1A1424;
@@ -335,7 +347,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .venus-meta {
+      .venus-modal .venus-meta {
         font-size: 13px;
         font-weight: 400;
         color: #6B607E;
@@ -343,27 +355,27 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .venus-meta .venus-id { font-variant-numeric: tabular-nums; }
-      .venus-meta .venus-dot { margin: 0 6px; color: #B8B0C7; }
+      .venus-modal .venus-id { font-variant-numeric: tabular-nums; }
+      .venus-modal .venus-dot { margin: 0 6px; color: #B8B0C7; }
 
-      .venus-row-arrow {
+      .venus-modal .venus-row-arrow {
         flex: 0 0 auto;
         color: #6B607E;
         opacity: 0;
         transition: opacity 100ms;
         display: flex;
       }
-      .venus-row:hover .venus-row-arrow { opacity: 1; }
+      .venus-modal .venus-row:hover .venus-row-arrow { opacity: 1; }
 
-      .venus-empty {
+      .venus-modal .venus-empty {
         padding: 24px 16px;
         text-align: center;
         font-size: 13px;
         color: #6B607E;
       }
 
-      .venus-status:empty { display: none; }
-      .venus-status {
+      .venus-modal .venus-status:empty { display: none; }
+      .venus-modal .venus-status {
         padding: 12px 16px;
         font-size: 13px;
         color: #6B607E;
@@ -371,12 +383,12 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         max-height: 220px;
         overflow-y: auto;
       }
-      .venus-status .venus-status-ok { color: #0E6F6F; font-weight: 600; }
-      .venus-status .venus-status-warn { color: #8A4B00; font-weight: 600; }
-      .venus-status .venus-status-err { color: #B91C1C; font-weight: 600; }
-      .venus-status details { margin-top: 6px; }
-      .venus-status summary { cursor: pointer; color: #7C3AED; font-size: 12px; }
-      .venus-status pre {
+      .venus-modal .venus-status-ok { color: #0E6F6F; font-weight: 600; }
+      .venus-modal .venus-status-warn { color: #8A4B00; font-weight: 600; }
+      .venus-modal .venus-status-err { color: #B91C1C; font-weight: 600; }
+      .venus-modal .venus-status details { margin-top: 6px; }
+      .venus-modal .venus-status summary { cursor: pointer; color: #7C3AED; font-size: 12px; }
+      .venus-modal .venus-status pre {
         font-family: ui-monospace, SFMono-Regular, monospace;
         font-size: 11px;
         color: #1A1424;
@@ -386,21 +398,21 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         background: #F6F3FB;
         border-radius: 6px;
       }
-      .venus-status .venus-info-card {
+      .venus-modal .venus-info-card {
         padding: 10px 12px;
         background: #F4EFFB;
         border: 1px solid #E6E1EE;
         border-radius: 8px;
         color: #1A1424;
       }
-      .venus-status .venus-info-card .venus-info-title {
+      .venus-modal .venus-info-title {
         font-size: 14px;
         font-weight: 700;
         color: #7C3AED;
         margin-bottom: 4px;
       }
 
-      .venus-footer {
+      .venus-modal .venus-footer {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -410,7 +422,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         font-size: 13px;
         color: #6B607E;
       }
-      .venus-footer .venus-footer-icon { color: #6B607E; display: flex; }
+      .venus-modal .venus-footer-icon { color: #6B607E; display: flex; flex: 0 0 auto; }
     \`;
     document.head.appendChild(style);
   }
@@ -458,9 +470,10 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   function footerText() {
-    return location.pathname.includes('seleccionModelo')
-      ? 'Clica un cas per saber quin formulari triar (EX31/EX32)'
-      : 'Clica un cas per emplenar el formulari automàticament';
+    // Mateix missatge a totes les pantalles. A la sel screen el "fill"
+    // és en realitat un missatge informatiu, però el voluntari veu el
+    // mateix copy independentment d'on és — més consistent.
+    return 'Clica un cas per emplenar el formulari automàticament';
   }
 
   // Parseig: "RR-003-REDACTED--REDACTED" → "RR-003"

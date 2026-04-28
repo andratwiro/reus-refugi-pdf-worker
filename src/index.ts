@@ -237,7 +237,15 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
     const pdfBytes = await fillAnexo2Pdf(templateBytes, record);
     const filename = anexo2Filename(record);
 
-    await airtable.clearAttachmentField(tableId, body.recordId, pdfField);
+    // One combined PATCH: clear attachment field + set timestamp. Saves an
+    // Airtable API call (now 2 hits to api.airtable.com per /anexo2 instead
+    // of 3 — important under the 5 req/sec per-base limit when 6-8 voluntaris
+    // cliquen alhora). Si l'upload següent falla, el timestamp queda al
+    // moment de la generació intentada — acceptable, sobreescrit al re-click.
+    await airtable.updateFields(tableId, body.recordId, {
+      [pdfField]: [],
+      [generatedAtField]: new Date().toISOString(),
+    });
     await airtable.uploadAttachment({
       recordId: body.recordId,
       fieldIdOrName: pdfField,
@@ -245,13 +253,6 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
       contentType: "application/pdf",
       bytes: pdfBytes,
     });
-
-    await airtable.updateField(
-      tableId,
-      body.recordId,
-      generatedAtField,
-      new Date().toISOString(),
-    );
 
     return corsJson({
       ok: true,

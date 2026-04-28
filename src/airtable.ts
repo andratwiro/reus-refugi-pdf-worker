@@ -22,6 +22,31 @@ export class AirtableClient {
   ) {}
 
   /**
+   * fetch + auto-retry on 429 (Airtable rate limit).
+   *
+   * Airtable enforces 5 req/sec per base; a single burst above that locks
+   * the entire base for 30 seconds via HTTP 429 with a `Retry-After` header.
+   * Amb 6-8 voluntaris clicant en paral·lel (Anexo II), és fàcil arribar-hi.
+   * Aquest helper segueix `Retry-After` (o 30s per defecte) i reintenta una
+   * vegada — sufficient per cobrir el lockout sense fer esperar el voluntari
+   * més enllà d'una pausa única.
+   */
+  private async fetchWithRetry(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    let resp = await fetch(url, init);
+    if (resp.status !== 429) return resp;
+    const retryAfterRaw = resp.headers.get("Retry-After");
+    const retryAfter = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
+    const waitMs = (Number.isFinite(retryAfter) ? retryAfter : 30) * 1000;
+    console.warn(`Airtable 429 — waiting ${waitMs}ms before single retry (${url})`);
+    await new Promise((r) => setTimeout(r, waitMs));
+    resp = await fetch(url, init);
+    return resp;
+  }
+
+  /**
    * GET a record by ID. Returns field values keyed by field ID by default
    * (so our code is stable against renames). Pass `{ byFieldId: false }`
    * to get fields keyed by name instead (used for tables where we don't
@@ -35,7 +60,7 @@ export class AirtableClient {
     const byFieldId = opts.byFieldId !== false;
     const params = byFieldId ? "?returnFieldsByFieldId=true" : "";
     const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}${params}`;
-    const resp = await fetch(url, {
+    const resp = await this.fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${this.token}` },
     });
     if (!resp.ok) {
@@ -89,7 +114,7 @@ export class AirtableClient {
       if (offset) params.set("offset", offset);
 
       const url = `${API_BASE}/${this.baseId}/${tableId}?${params}`;
-      const resp = await fetch(url, {
+      const resp = await this.fetchWithRetry(url, {
         headers: { Authorization: `Bearer ${this.token}` },
       });
       if (!resp.ok) {
@@ -124,7 +149,7 @@ export class AirtableClient {
 
     const base64 = uint8ArrayToBase64(bytes);
 
-    const resp = await fetch(url, {
+    const resp = await this.fetchWithRetry(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.token}`,
@@ -145,56 +170,48 @@ export class AirtableClient {
   }
 
   /**
-   * Clear an attachment field before uploading (so we get "replace" semantics
-   * instead of accumulating versions). This is the user-requested Opció A.
+   * PATCH multiple fields on a record in a single API call.
+   * Used by /anexo2 to clear the attachment field AND set the timestamp
+   * in one request — saves an Airtable API call against the 5 req/sec
+   * per-base limit.
    */
-  async clearAttachmentField(
+  async updateFields(
     tableId: string,
     recordId: string,
-    fieldIdOrName: string,
+    fields: Record<string, unknown>,
   ): Promise<void> {
     const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}`;
-    const resp = await fetch(url, {
+    const resp = await this.fetchWithRetry(url, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${this.token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        fields: { [fieldIdOrName]: [] },
-      }),
+      body: JSON.stringify({ fields }),
     });
     if (!resp.ok) {
       const body = await resp.text();
-      throw new Error(`Airtable clearAttachment failed: ${resp.status} ${body}`);
+      throw new Error(`Airtable updateFields failed: ${resp.status} ${body}`);
     }
   }
 
-  /**
-   * PATCH a single field on a record.
-   * Used for timestamps (e.g. "Generat el" on the Anexo II flow).
-   */
+  /** Clear an attachment field. Thin wrapper around updateFields. */
+  async clearAttachmentField(
+    tableId: string,
+    recordId: string,
+    fieldIdOrName: string,
+  ): Promise<void> {
+    await this.updateFields(tableId, recordId, { [fieldIdOrName]: [] });
+  }
+
+  /** PATCH a single field. Thin wrapper around updateFields. */
   async updateField(
     tableId: string,
     recordId: string,
     fieldIdOrName: string,
     value: unknown,
   ): Promise<void> {
-    const url = `${API_BASE}/${this.baseId}/${tableId}/${recordId}`;
-    const resp = await fetch(url, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fields: { [fieldIdOrName]: value },
-      }),
-    });
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`Airtable updateField failed: ${resp.status} ${body}`);
-    }
+    await this.updateFields(tableId, recordId, { [fieldIdOrName]: value });
   }
 }
 

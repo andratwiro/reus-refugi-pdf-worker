@@ -223,13 +223,17 @@ function escAttr(s: string): string { return escapeHtml(s); }
  * a l'hora d'esborrar).
  */
 function renderTablaDatosAdj(): string {
+  // Estructura idèntica a Mercurio real (captures/abde-after-attachments.html):
+  // la classe `clAdjunDes` està al <span> dins del <td>, NO al <td> directament.
+  // Si la posem malament, el pre-check de duplicats del userscript no troba res
+  // en producció — bug detectat en proves reals d'Abderrahim el 28-29/04/2026.
   const rows = mockSession.docs.map(d => `
     <tr id="${escAttr(d.serverId)}">
-      <td><a href="javascript:void(0)" onclick="eliminadocAdjuntos(this)">Eliminar</a></td>
-      <td class="clAdjunDes">${escAttr(d.filename)}</td>
-      <td>${escAttr(d.description)}</td>
-      <td>${escAttr(d.md5)}</td>
-      <td style="display: none;">${escAttr(d.tipoDocumento)}</td>
+      <td><span class="mf-table-responsive--pseudotd"><a onclick="eliminadocAdjuntos(this)">Eliminar</a></span></td>
+      <td><span class="mf-table-responsive--pseudotd clAdjunDes">${escAttr(d.filename)}</span></td>
+      <td><span class="mf-table-responsive--pseudotd">${escAttr(d.description)}</span></td>
+      <td><span class="mf-table-responsive--pseudotd">${escAttr(d.md5)}</span></td>
+      <td style="display: none;"><span class="mf-table-responsive--pseudotd">${escAttr(d.tipoDocumento)}</span></td>
     </tr>`).join('');
   return `<table id="tabla_datos_adj" class="mf-table-responsive mf-table-data mf-table-data__zebra"><tbody>${rows}</tbody></table>`;
 }

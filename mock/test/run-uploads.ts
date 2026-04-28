@@ -97,7 +97,9 @@ function readUploadedFilenames(html: string): Set<string> {
   const tableMatch = html.match(/<table id="tabla_datos_adj"[^>]*>([\s\S]*?)<\/table>/);
   if (!tableMatch) return new Set();
   const names = new Set<string>();
-  const re = /<td class="clAdjunDes">([^<]+)<\/td>/g;
+  // Match el text dins de qualsevol element amb classe clAdjunDes (Mercurio
+  // real té <span class="... clAdjunDes">filename</span> dins del <td>).
+  const re = /class="[^"]*\bclAdjunDes\b[^"]*"[^>]*>([^<]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(tableMatch[1])) !== null) names.add(m[1].trim().toLowerCase());
   return names;

@@ -855,9 +855,13 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   function readUploadedFilenames() {
-    const tds = document.querySelectorAll('#tabla_datos_adj td.clAdjunDes');
+    // A Mercurio real, la classe clAdjunDes està al <span> dins del <td>:
+    //   <td><span class="mf-table-responsive--pseudotd clAdjunDes">passaport.pdf</span></td>
+    // Selector amb només la classe (sense restriccio de tag) cobreix tant
+    // aquest cas com qualsevol mock que la posi al <td> directament.
+    const els = document.querySelectorAll('#tabla_datos_adj .clAdjunDes');
     const set = new Set();
-    for (const td of tds) set.add((td.textContent || '').trim().toLowerCase());
+    for (const el of els) set.add((el.textContent || '').trim().toLowerCase());
     return set;
   }
 

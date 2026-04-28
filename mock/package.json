@@ -8,6 +8,7 @@
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
     "test": "tsx test/run.ts",
+    "test:uploads": "tsx test/run-uploads.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,0 +1,47 @@
+{
+  "_comment": "Mock dels documents que tindria el cas d'Abderrahim a la taula Documents d'Airtable. La taxonomia 'Mercurio tipus document' és la nova alineada amb el select de Mercurio (Pasaporte / Antecedentes penales / Tasa / Permanencia / Documentación vía legal / Otros). Cada doc apunta a un PDF físic a fixtures/pdfs/ que el mock Airtable retornarà via GET /mock/airtable/document/:slug. NO és el format real de l'API Airtable — és el format que el Worker hauria de retornar al userscript via /mercurio/documents.",
+  "caseId": "recABDERRAHIM00001",
+  "idCas": "RR-001-ABDERRAHIM",
+  "documents": [
+    {
+      "airtableId": "recDOC0001",
+      "filename": "passaport-abderrahim.pdf",
+      "mimetype": "application/pdf",
+      "mercurioCategory": "Pasaporte",
+      "sizeBytes": 200,
+      "_pdfSlug": "passaport-abderrahim"
+    },
+    {
+      "airtableId": "recDOC0002",
+      "filename": "antecedents-marroc.pdf",
+      "mimetype": "application/pdf",
+      "mercurioCategory": "Antecedentes penales",
+      "sizeBytes": 200,
+      "_pdfSlug": "antecedents-marroc"
+    },
+    {
+      "airtableId": "recDOC0003",
+      "filename": "tasa-790.pdf",
+      "mimetype": "application/pdf",
+      "mercurioCategory": "Tasa",
+      "sizeBytes": 200,
+      "_pdfSlug": "tasa-790"
+    },
+    {
+      "airtableId": "recDOC0004",
+      "filename": "empadronament-2025.pdf",
+      "mimetype": "application/pdf",
+      "mercurioCategory": "Permanencia",
+      "sizeBytes": 200,
+      "_pdfSlug": "empadronament-2025"
+    },
+    {
+      "airtableId": "recDOC0005",
+      "filename": "informe-vulnerabilitat.pdf",
+      "mimetype": "application/pdf",
+      "mercurioCategory": "Documentación vía legal",
+      "sizeBytes": 200,
+      "_pdfSlug": "informe-vulnerabilitat"
+    }
+  ]
+}

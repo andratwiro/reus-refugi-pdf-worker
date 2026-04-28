@@ -10,9 +10,14 @@
  * substitueix els placeholders `__WORKER_URL__` i `__SHARED_SECRET__`
  * a runtime amb la URL pública del Worker i el secret.
  *
- * El userscript s'injecta a tres pantalles de Mercurio:
- *   - seleccionModelo-XX.html        → MODE INFO: clica cas, et diu si és EX31/EX32
- *   - nuevaSolicitud-EX31/EX32.html  → MODE OMPLIR: clica cas, omple 144 camps
+ * El userscript s'injecta a quatre pantalles de Mercurio:
+ *   - seleccionModelo-XX.html              → MODE INFO: clica cas, diu si EX31/EX32
+ *   - nuevaSolicitud-EX31/EX32.html        → MODE OMPLIR: clica cas, omple 144 camps
+ *   - presentacionTelematicaDocumentacion  → MODE PUJAR: clica cas, puja els docs
+ *                                            d'Airtable seqüencialment (1500ms
+ *                                            entre cada un — anti-bot Mercurio).
+ *                                            NO clica el "Continuar" final;
+ *                                            el voluntari revisa i submet.
  *
  * Nota seguretat: el SHARED_SECRET viatja embedded al userscript.
  * El nostre threat model: voluntaris RECEX de confiança + audit logs
@@ -22,11 +27,12 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 // @name         Venus — Auto-Fill Mercurio
 // @namespace    https://reusrefugi.cat
 // @version      __VERSION__
-// @description  Cerca un cas d'Airtable Venus i omple el form EX-31/EX-32 de Mercurio amb 1 click. NO submiteja.
+// @description  Cerca un cas d'Airtable Venus i omple el form EX-31/EX-32 de Mercurio amb 1 click, o puja els documents d'Airtable a la pantalla de documentació. NO submiteja.
 // @author       Reus Refugi
 // @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/seleccionModelo-*.html*
 // @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX31.html*
 // @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/nuevaSolicitud-EX32.html*
+// @match        https://mercurio.delegaciondelgobierno.gob.es/mercurio/presentacionTelematicaDocumentacion.html*
 // @updateURL    __WORKER_URL__/mercurio.user.js
 // @downloadURL  __WORKER_URL__/mercurio.user.js
 // @grant        none
@@ -609,7 +615,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         <span class="venus-heart">\${ICON_HEART}</span>
         <span class="venus-title">Venus</span>
         <span class="venus-sep">—</span>
-        <span class="venus-subtitle">Auto-emplenar formulari</span>
+        <span class="venus-subtitle">\${modeText('subtitle')}</span>
         <span class="venus-count" id="venus-count"></span>
       </div>
       <div class="venus-search-wrap">
@@ -639,17 +645,47 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     doSearch('', results, status, count);
   }
 
-  // Footer copy per estat (idle/filling/done/error). El voluntari veu el
-  // missatge actualitzat segons l'estat actual del fill.
-  const FOOTER_IDLE    = 'Clica un cas per emplenar el formulari automàticament';
-  const FOOTER_FILLING = 'Emplenant camps… no tanquis aquesta finestra';
-  const FOOTER_DONE    = 'Formulari emplenat. Revisa abans d\\'enviar.';
-  function footerText() { return FOOTER_IDLE; }
+  // ─── Mode (segons URL) ──────────────────────────────────────────────
+  // Quatre pantalles de Mercurio s'injecten al userscript. La lògica de
+  // click depèn de la pantalla, així com el copy del subtitle/footer.
+  function getMode() {
+    const p = location.pathname;
+    if (p.includes('presentacionTelematicaDocumentacion')) return 'upload';
+    if (p.includes('seleccionModelo')) return 'select';
+    return 'fill'; // nuevaSolicitud-EX31/EX32 (default)
+  }
+  const MODE_TEXTS = {
+    fill: {
+      subtitle: 'Auto-emplenar formulari',
+      idle:     'Clica un cas per emplenar el formulari automàticament',
+      busy:     'Emplenant camps… no tanquis aquesta finestra',
+      done:     'Formulari emplenat. Revisa abans d\\'enviar.',
+    },
+    upload: {
+      subtitle: 'Pujar documents',
+      idle:     'Clica un cas per pujar els seus documents a Mercurio',
+      busy:     'Pujant documents… no tanquis aquesta finestra',
+      done:     'Documents pujats. Revisa i clica CONTINUAR.',
+    },
+    select: {
+      subtitle: 'Seleccionar formulari',
+      idle:     'Clica un cas per saber si és EX-31 o EX-32',
+      busy:     '',
+      done:     '',
+    },
+  };
+  function modeText(key) { return (MODE_TEXTS[getMode()] || MODE_TEXTS.fill)[key]; }
+  function footerText() { return modeText('idle'); }
   function setFooterText(t) {
     const el = document.getElementById('venus-footer-text');
     if (el) el.textContent = t;
   }
   function footerError(n) {
+    if (getMode() === 'upload') {
+      return n === 1
+        ? 'Hi ha 1 document que no s\\'ha pogut pujar. Revisa\\'l.'
+        : \`Hi ha \${n} documents que no s'han pogut pujar. Revisa'ls.\`;
+    }
     return n === 1
       ? 'Hi ha 1 camp que no s\\'ha pogut emplenar. Revisa\\'l.'
       : \`Hi ha \${n} camps que no s'han pogut emplenar. Revisa'ls.\`;
@@ -784,10 +820,198 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     }
   }
 
+  // ─── MODE PUJAR (presentacionTelematicaDocumentacion.html) ──────────
+  // Match d'una categoria d'Airtable contra el select id=docAdjuntarAdjuntos
+  // del DOM. NO hardcodem codis perquè 188/189 (i potser altres futurs) varien
+  // segons via legal — el match és per substring del label de l'option, més
+  // robust a canvis numèrics. Validat amb el test E2E del mock.
+  function resolveMercurioCode(category, options) {
+    const cat = String(category || '').toLowerCase();
+    const patterns = [
+      [/^pasaporte/i,                       /pasaporte/i],
+      [/^antecedentes?/i,                   /antecedentes/i],
+      [/^tasa$|^justifica/i,                /tasa|justificante.*abono/i],
+      [/^permanencia/i,                     /permanencia/i],
+      [/^documentaci[oó]n.*v[ií]a.*legal/i, /vulnerabilidad|justificativa de presentaci[oó]n|entidad colaboradora/i],
+      [/^otros?$/i,                         /otros documentos/i],
+    ];
+    for (const [catRe, optRe] of patterns) {
+      if (catRe.test(cat)) {
+        const found = options.find(o => optRe.test(o.label));
+        if (found) return { code: found.code, label: found.label, matchedBy: catRe.source };
+      }
+    }
+    const otros = options.find(o => /otros/i.test(o.label));
+    if (otros) return { code: otros.code, label: otros.label, matchedBy: 'fallback:otros' };
+    return options[0] ? { code: options[0].code, label: options[0].label, matchedBy: 'fallback:first' } : null;
+  }
+
+  function readUploadOptions() {
+    const sel = document.getElementById('docAdjuntarAdjuntos');
+    if (!sel) return [];
+    return [...sel.options]
+      .filter(o => o.value)
+      .map(o => ({ code: o.value, label: (o.textContent || o.text || '').trim() }));
+  }
+
+  function readUploadedFilenames() {
+    const tds = document.querySelectorAll('#tabla_datos_adj td.clAdjunDes');
+    const set = new Set();
+    for (const td of tds) set.add((td.textContent || '').trim().toLowerCase());
+    return set;
+  }
+
+  // Render progress block per al mode upload. Estructura idèntica al
+  // renderProgress() del mode fill, però amb llabels "pujats / duplicats /
+  // errors" i el detail panel mostra issues amb context (filename + raó).
+  function renderUploadProgress(statusDiv, ok, dup, issues) {
+    const total = ok + dup + issues.length;
+    const segs = [];
+    if (ok > 0)            segs.push(\`<div class="venus-progress-seg-ok" style="flex:\${ok}"></div>\`);
+    if (dup > 0)           segs.push(\`<div class="venus-progress-seg-skip" style="flex:\${dup}"></div>\`);
+    if (issues.length > 0) segs.push(\`<div class="venus-progress-seg-err" style="flex:\${issues.length}"></div>\`);
+    const detailLink = issues.length
+      ? '<button type="button" class="venus-progress-detail-link" id="venus-detail-link">Veure detall →</button>'
+      : '';
+    statusDiv.innerHTML = \`
+      <div class="venus-progress-block">
+        <div class="venus-progress-header">
+          <span>Pujats <strong>\${ok}</strong> de <strong>\${total}</strong> documents</span>
+          \${detailLink}
+        </div>
+        <div class="venus-progress-bar">\${segs.join('')}</div>
+        <div class="venus-progress-legend">
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-ok"></span><strong>\${ok}</strong> pujats</span>
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-skip"></span><strong>\${dup}</strong> duplicats</span>
+          <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-err"></span><strong>\${issues.length}</strong> errors</span>
+        </div>
+        <div class="venus-progress-detail-panel" id="venus-detail-panel"></div>
+      </div>
+    \`;
+    if (issues.length) {
+      const link = document.getElementById('venus-detail-link');
+      const panel = document.getElementById('venus-detail-panel');
+      let lines = '';
+      for (const r of issues) lines += escapeHtml(r.filename) + ': ' + escapeHtml(r.reason) + '\\n';
+      panel.textContent = lines;
+      link.addEventListener('click', () => panel.classList.toggle('open'));
+    }
+  }
+
+  async function uploadDocuments(c, statusDiv, row) {
+    setRowState(row, 'filling');
+    setFooterText(modeText('busy'));
+    statusDiv.innerHTML = '';
+
+    // Pre-check estructural: ha d'existir el <select> i la <table>. Si no,
+    // probablement la pantalla encara no ha carregat o és una variant.
+    const options = readUploadOptions();
+    if (options.length === 0) {
+      setRowState(row, 'error');
+      statusDiv.innerHTML = '<span class="venus-error-line">No s\\'ha trobat el selector de tipus de document.</span> Espera que carregui i refresca.';
+      setFooterText('Pantalla no preparada.');
+      return;
+    }
+
+    let docsResp;
+    try {
+      docsResp = await workerGet('/mercurio/documents?caso=' + encodeURIComponent(c.id));
+    } catch (e) {
+      setRowState(row, 'error');
+      statusDiv.innerHTML = '<span class="venus-error-line">Error carregant documents d\\'Airtable:</span><br>' + escapeHtml(String(e));
+      setFooterText('No s\\'ha pogut carregar.');
+      return;
+    }
+    const docs = (docsResp && docsResp.documents) || [];
+    if (docs.length === 0) {
+      setRowState(row, 'error');
+      statusDiv.innerHTML = '<span class="venus-error-line">Aquest cas no té documents a Airtable.</span> Revisa la taula Documents.';
+      setFooterText('Sense documents.');
+      return;
+    }
+
+    const alreadyUploaded = readUploadedFilenames();
+    const results = [];
+
+    for (let i = 0; i < docs.length; i++) {
+      const doc = docs[i];
+      // Duplicate-skip per filename (case-insensitive). Mercurio té ID server-side
+      // a la <tr>, però el voluntari només veu el filename — el match per nom
+      // és el que fa sentit funcionalment.
+      if (alreadyUploaded.has(String(doc.filename || '').toLowerCase())) {
+        results.push({ doc, status: 'duplicate', filename: doc.filename, reason: 'ja és a la taula' });
+        continue;
+      }
+
+      const resolved = resolveMercurioCode(doc.mercurioCategory, options);
+      if (!resolved) {
+        results.push({ doc, status: 'unmapped', filename: doc.filename, reason: 'no s\\'ha pogut mapejar a Mercurio' });
+        continue;
+      }
+
+      // Descarrega bytes via Worker proxy (URL signada Airtable mai exposada al browser)
+      let blob;
+      try {
+        const dlResp = await fetch(WORKER_URL + '/mercurio/document?caso=' + encodeURIComponent(c.id) + '&attId=' + encodeURIComponent(doc.airtableId), {
+          headers: { 'Authorization': 'Bearer ' + SHARED_SECRET },
+        });
+        if (!dlResp.ok) {
+          results.push({ doc, status: 'download_error', filename: doc.filename, reason: 'descàrrega ' + dlResp.status });
+          continue;
+        }
+        blob = await dlResp.blob();
+      } catch (e) {
+        results.push({ doc, status: 'download_error', filename: doc.filename, reason: String(e) });
+        continue;
+      }
+
+      // POST multipart a Mercurio. Mateix host (path relatiu) — així viatgen
+      // les cookies de sessió del voluntari (JSESSIONID, TSPD/F5 anti-bot).
+      try {
+        const fd = new FormData();
+        fd.append('id_tipo_documento', resolved.code);
+        fd.append('de_documento', resolved.label);
+        fd.append('texto_otros', '1');
+        fd.append('name', doc.filename);
+        fd.append('file', blob, doc.filename);
+        const upResp = await fetch('/mercurio/uploadDocumento', { method: 'POST', body: fd });
+        if (!upResp.ok) {
+          const txt = await upResp.text().catch(() => '');
+          results.push({ doc, status: 'upload_error', filename: doc.filename, reason: 'POST ' + upResp.status + ' ' + txt.slice(0, 120) });
+          continue;
+        }
+        const html = await upResp.text();
+        // Refresca la taula amb la resposta — exactament com fa plupload a
+        // mercurio-4.0.js: $("#cont_tabla_datos_adj").html(ret.response).
+        const cont = document.getElementById('cont_tabla_datos_adj');
+        if (cont) cont.innerHTML = html;
+        alreadyUploaded.add(doc.filename.toLowerCase());
+        results.push({ doc, status: 'ok', filename: doc.filename, code: resolved.code });
+      } catch (e) {
+        results.push({ doc, status: 'upload_error', filename: doc.filename, reason: String(e) });
+      }
+
+      // Sleep 1500ms entre uploads — Mercurio té TSPD/F5 anti-bot que pot
+      // detectar bursts. El darrer iter no necessita sleep.
+      if (i < docs.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    const ok = results.filter(r => r.status === 'ok').length;
+    const dup = results.filter(r => r.status === 'duplicate').length;
+    const issues = results.filter(r => r.status !== 'ok' && r.status !== 'duplicate');
+
+    setRowState(row, issues.length === 0 ? 'done' : 'error');
+    renderUploadProgress(statusDiv, ok, dup, issues);
+    setFooterText(issues.length === 0 ? modeText('done') : footerError(issues.length));
+    console.log('[Venus] upload results:', results);
+  }
+
   async function fillCase(c, statusDiv, row) {
+    const mode = getMode();
+
     // MODE INFO (seleccionModelo-XX.html): no toquem el DOM ni l'estat de
     // la fila, només indiquem al voluntari quin radio ha de triar.
-    if (location.pathname.includes('seleccionModelo')) {
+    if (mode === 'select') {
       statusDiv.innerHTML = \`
         <div class="venus-info-card">
           <div class="venus-info-title">Tria \${escapeHtml(c.formulario)}</div>
@@ -798,7 +1022,15 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       return;
     }
 
-    // Verifica form correcte (EX31 vs EX32)
+    // MODE PUJAR (presentacionTelematicaDocumentacion.html): puja docs
+    // d'Airtable seqüencialment. Aquesta pantalla ve DESPRÉS del
+    // submit del form EX-31/32, així que no validem c.formulario —
+    // els docs serveixen igual per ambdues vies.
+    if (mode === 'upload') {
+      return uploadDocuments(c, statusDiv, row);
+    }
+
+    // MODE OMPLIR — verifica form correcte (EX31 vs EX32)
     const onForm = location.pathname.includes('EX31') ? 'EX31'
                  : location.pathname.includes('EX32') ? 'EX32' : '?';
     if (c.formulario !== onForm) {
@@ -810,7 +1042,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
     // Estat: FILLING — barra activa al primer instant.
     setRowState(row, 'filling');
-    setFooterText(FOOTER_FILLING);
+    setFooterText(modeText('busy'));
     statusDiv.innerHTML = '';
 
     try {
@@ -824,7 +1056,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       // Estat final: DONE si 0 issues, ERROR altrament.
       setRowState(row, issues.length === 0 ? 'done' : 'error');
       renderProgress(statusDiv, ok, skipped, issues.length, issues);
-      setFooterText(issues.length === 0 ? FOOTER_DONE : footerError(issues.length));
+      setFooterText(issues.length === 0 ? modeText('done') : footerError(issues.length));
       console.log('[Venus] fill results:', results);
     } catch (e) {
       setRowState(row, 'error');

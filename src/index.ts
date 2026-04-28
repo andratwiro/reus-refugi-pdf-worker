@@ -15,7 +15,7 @@ import { CASOS } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 
-const USERSCRIPT_VERSION = "1.3.3";
+const USERSCRIPT_VERSION = "1.4.0";
 
 export interface Env {
   // Secrets
@@ -98,6 +98,12 @@ export default {
     }
     if (request.method === "GET" && url.pathname === "/mercurio/payload") {
       return handleMercurioPayload(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/mercurio/documents") {
+      return handleMercurioDocuments(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/mercurio/document") {
+      return handleMercurioDocument(request, env);
     }
 
     return json({ error: "Not found" }, 404);
@@ -495,6 +501,185 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
     formulario,
     payload,
   }, request);
+}
+
+// ─── Documents (upload de PDFs a Mercurio des del userscript) ──────────────
+
+// Constants per la taula `Documents` d'Airtable. NO hi ha tableId al wrangler.toml
+// — l'API d'Airtable accepta el nom de taula a l'URL igual que un ID, així que
+// fem servir el nom literal. Si Rob un dia renombra la taula, swap aquí.
+//
+// Schema esperat:
+//   Casos.Documents              → multipleRecordLinks → Documents.id
+//   Documents.Fitxers            → multipleAttachments (1 fitxer per record)
+//   Documents."Mercurio tipus document" → singleSelect amb la taxonomia
+//                                   alineada al <select> de Mercurio:
+//                                   Pasaporte, Antecedentes penales, Tasa,
+//                                   Permanencia, Documentación vía legal, Otros
+const DOCUMENTS_TABLE = "Documents";
+const DOCS_LINK_FIELD_ON_CASOS = "Documents";
+const DOCS_ATTACHMENT_FIELD = "Fitxers";
+const DOCS_TYPE_FIELD = "Mercurio tipus document";
+
+interface AirtableAttachment {
+  id?: string;
+  url: string;
+  filename: string;
+  size: number;
+  type: string;
+}
+
+/**
+ * GET /mercurio/documents?caso=recXXX
+ *
+ * Retorna la llista de documents del cas, amb les categories canòniques
+ * (label exacte de la taxonomia d'Airtable) perquè el userscript faci match
+ * contra el `<select id="docAdjuntarAdjuntos">` del DOM.
+ *
+ * `downloadUrl` apunta a `/mercurio/document?caso=...&attId=...` d'aquest mateix
+ * Worker — el voluntari MAI veu URLs Airtable signades. Avantatges: les URLs
+ * Airtable expiren ~2h i una sessió Mercurio pot trigar més; a més centralitzem
+ * audit logs al Worker.
+ */
+async function handleMercurioDocuments(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+  const url = new URL(request.url);
+  const caso = url.searchParams.get("caso");
+  if (!caso || !/^rec[A-Za-z0-9]{14}$/.test(caso)) {
+    return corsJson({ error: "missing or invalid 'caso' param" }, request, 400);
+  }
+
+  const at = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
+  // byFieldId:false perquè els camps Documents/Fitxers/"Mercurio tipus document"
+  // no tenen IDs hardcoded al projecte (a diferència de Casos).
+  const casoRec = await at.getRecord(env.CASOS_TABLE_ID, caso, { byFieldId: false });
+
+  const links = (casoRec.fields as Record<string, unknown>)[DOCS_LINK_FIELD_ON_CASOS];
+  const linkIds: string[] = Array.isArray(links)
+    ? (links as Array<string | { id: string }>).map((l) => typeof l === "string" ? l : l.id).filter(Boolean)
+    : [];
+
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const idCas = (casoRec.fields as Record<string, unknown>)["ID Cas"] ?? null;
+
+  if (linkIds.length === 0) {
+    return corsJson({ caso, idCas, documents: [] }, request);
+  }
+
+  // Fetch paral·lel — el AirtableClient.getRecords ja ho fa amb retry 429
+  let docRecs;
+  try {
+    docRecs = await Promise.all(
+      linkIds.map((id) => at.getRecord(DOCUMENTS_TABLE, id, { byFieldId: false })),
+    );
+  } catch (err) {
+    console.error("documents fetch error:", err);
+    return corsJson({ error: String(err instanceof Error ? err.message : err) }, request, 500);
+  }
+
+  const documents = [];
+  for (const d of docRecs) {
+    const f = d.fields as Record<string, unknown>;
+    const atts = f[DOCS_ATTACHMENT_FIELD];
+    if (!Array.isArray(atts) || atts.length === 0) continue; // sense fitxer adjunt — saltem
+    const att = atts[0] as AirtableAttachment; // assumim 1 fitxer per record
+    const cat = f[DOCS_TYPE_FIELD];
+    const mercurioCategory = typeof cat === "string"
+      ? cat
+      : (cat && typeof cat === "object" && "name" in cat)
+        ? String((cat as { name: string }).name)
+        : "";
+
+    documents.push({
+      airtableId: d.id,
+      filename: att.filename,
+      mimetype: att.type ?? "application/octet-stream",
+      mercurioCategory,
+      sizeBytes: att.size,
+      // attId == record id de la taula Documents (no l'attachment.id intern d'Airtable).
+      // Fem servir record id perquè és estable i està indexat per la nostra
+      // validació security al GET /mercurio/document.
+      downloadUrl: `${baseUrl}/mercurio/document?caso=${encodeURIComponent(caso)}&attId=${encodeURIComponent(d.id)}`,
+    });
+  }
+
+  return corsJson({ caso, idCas, documents }, request);
+}
+
+/**
+ * GET /mercurio/document?caso=recXXX&attId=recYYY
+ *
+ * Proxy de bytes. Validem que recYYY (record a `Documents`) està enllaçat al
+ * recXXX (Casos.Documents) — sense això, qualsevol amb el SHARED_SECRET podria
+ * descarregar arbitràriament documents de la base coneixent recIds.
+ *
+ * Retornem amb `Content-Disposition` perquè el userscript pugui llegir el
+ * filename del header (i ho compari amb tabla_datos_adj per pre-check de
+ * duplicats si calgués).
+ */
+async function handleMercurioDocument(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+  const url = new URL(request.url);
+  const caso = url.searchParams.get("caso");
+  const attId = url.searchParams.get("attId");
+  if (!caso || !attId || !/^rec[A-Za-z0-9]{14}$/.test(caso) || !/^rec[A-Za-z0-9]{14}$/.test(attId)) {
+    return corsJson({ error: "missing or invalid 'caso' / 'attId' param" }, request, 400);
+  }
+
+  const at = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
+
+  // Security: verifica que el doc pertany al cas (els record id Airtable són
+  // 14 chars alfanumèrics — no es poden endevinar, però amb un secret compartit
+  // tot vol auditoria). Sense aquesta crida, un voluntari maliciós podria
+  // demanar `/mercurio/document?attId=<qualsevol>` i exfiltrar.
+  let casoRec;
+  try {
+    casoRec = await at.getRecord(env.CASOS_TABLE_ID, caso, { byFieldId: false });
+  } catch (err) {
+    console.error("document caso lookup error:", err);
+    return corsJson({ error: `caso ${caso} not found` }, request, 404);
+  }
+  const links = (casoRec.fields as Record<string, unknown>)[DOCS_LINK_FIELD_ON_CASOS];
+  const linkIds: string[] = Array.isArray(links)
+    ? (links as Array<string | { id: string }>).map((l) => typeof l === "string" ? l : l.id).filter(Boolean)
+    : [];
+  if (!linkIds.includes(attId)) {
+    return corsJson({ error: `document ${attId} not linked to caso ${caso}` }, request, 403);
+  }
+
+  let docRec;
+  try {
+    docRec = await at.getRecord(DOCUMENTS_TABLE, attId, { byFieldId: false });
+  } catch (err) {
+    console.error("document record lookup error:", err);
+    return corsJson({ error: `document ${attId} not found` }, request, 404);
+  }
+  const atts = (docRec.fields as Record<string, unknown>)[DOCS_ATTACHMENT_FIELD];
+  if (!Array.isArray(atts) || atts.length === 0) {
+    return corsJson({ error: `document ${attId} has no attachment` }, request, 404);
+  }
+  const att = atts[0] as AirtableAttachment;
+
+  // Descarrega bytes via URL signada Airtable (server-side fetch — el voluntari
+  // mai veu aquesta URL).
+  const fileResp = await fetch(att.url);
+  if (!fileResp.ok) {
+    return corsJson({ error: `airtable download failed: ${fileResp.status}` }, request, 502);
+  }
+  const bytes = await fileResp.arrayBuffer();
+
+  // Filename: escape per evitar injection al header. RFC 6266 valor entre
+  // cometes amb backslash-escape de " i \. La majoria de filenames Airtable
+  // són ASCII safe (PDFs amb noms simples), però defensem.
+  const safeName = att.filename.replace(/[\\"]/g, "_");
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      "Content-Type": att.type ?? "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${safeName}"`,
+      ...corsHeaders(request),
+    },
+  });
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

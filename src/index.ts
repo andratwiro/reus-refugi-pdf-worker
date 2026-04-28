@@ -15,7 +15,7 @@ import { CASOS } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 
-const USERSCRIPT_VERSION = "1.4.0";
+const USERSCRIPT_VERSION = "1.4.1";
 
 export interface Env {
   // Secrets
@@ -518,7 +518,7 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
 //                                   Permanencia, Documentación vía legal, Otros
 const DOCUMENTS_TABLE = "Documents";
 const DOCS_LINK_FIELD_ON_CASOS = "Documents";
-const DOCS_ATTACHMENT_FIELD = "Fitxers";
+const DOCS_ATTACHMENT_FIELD = "Fitxer";
 const DOCS_TYPE_FIELD = "Mercurio tipus document";
 
 interface AirtableAttachment {

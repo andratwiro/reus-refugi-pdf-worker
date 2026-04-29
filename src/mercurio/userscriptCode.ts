@@ -978,12 +978,26 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       // POST multipart a Mercurio. Mateix host (path relatiu) — així viatgen
       // les cookies de sessió del voluntari (JSESSIONID, TSPD/F5 anti-bot).
       try {
+        // Garantim extensió coherent amb el MIME. Mercurio valida per
+        // extensió de filename, no només per Content-Type. Alguns docs
+        // d'Airtable tenen filename sense extensió ("Passaport", "Antecedentes
+        // penales") i Mercurio respon "tipus document no suportat" tot i
+        // ser PDFs vàlids. Inferim extensió del mimetype.
+        const ext = /pdf/i.test(doc.mimetype) ? '.pdf'
+                  : /jpe?g/i.test(doc.mimetype) ? '.jpg'
+                  : /png/i.test(doc.mimetype) ? '.png'
+                  : /gif/i.test(doc.mimetype) ? '.gif'
+                  : /tiff?/i.test(doc.mimetype) ? '.tif'
+                  : /bmp/i.test(doc.mimetype) ? '.bmp'
+                  : '';
+        const hasExt = /\\.[a-z0-9]{2,4}$/i.test(doc.filename);
+        const safeFilename = hasExt ? doc.filename : (doc.filename + ext);
         const fd = new FormData();
         fd.append('id_tipo_documento', resolved.code);
         fd.append('de_documento', resolved.label);
         fd.append('texto_otros', '1');
-        fd.append('name', doc.filename);
-        fd.append('file', blob, doc.filename);
+        fd.append('name', safeFilename);
+        fd.append('file', blob, safeFilename);
         const upResp = await fetch('/mercurio/uploadDocumento', { method: 'POST', body: fd });
         if (!upResp.ok) {
           const txt = await upResp.text().catch(() => '');

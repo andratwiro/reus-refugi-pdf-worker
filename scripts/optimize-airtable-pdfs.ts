@@ -65,6 +65,24 @@ try {
   process.exit(1);
 }
 
+// Detecta el binari de ImageMagick — Mac homebrew: `magick` (v7).
+// Ubuntu/Debian: `convert` (v6) per defecte. Mateixos flags, diferent nom.
+function detectMagick(): string | null {
+  for (const cmd of ["magick", "convert"]) {
+    try {
+      execSync(`${cmd} --version`, { stdio: "pipe" });
+      return cmd;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+const MAGICK_CMD = detectMagick();
+if (!MAGICK_CMD) {
+  console.warn("⚠️  ImageMagick no detectat — només es farà servir gs (estalvi més modest).");
+}
+
 // ─── Types ───────────────────────────────────────────────────────────
 interface Attachment {
   id: string;
@@ -106,6 +124,7 @@ async function listAllDocuments(): Promise<Record[]> {
   do {
     const params = new URLSearchParams();
     params.set("pageSize", "100");
+    params.set("returnFieldsByFieldId", "true"); // accés per ID al codi
     if (offset) params.set("offset", offset);
     const data = await airtable("GET", `/${BASE_ID}/${TABLE_ID}?${params}`);
     out.push(...data.records);
@@ -161,16 +180,22 @@ async function uploadAttachment(
 function compressBest(inPath: string, baseOutPath: string): { bytes: Buffer; method: string } | null {
   const candidates: Array<{ bytes: Buffer; method: string }> = [];
 
-  // A) Magick rasteritzat
-  try {
-    const aPath = baseOutPath + ".magick.pdf";
-    execSync(
-      `magick -density 120 "${inPath}" -compress jpeg -quality 60 "${aPath}"`,
-      { stdio: "pipe" },
-    );
-    candidates.push({ bytes: readFileSync(aPath), method: "magick:120dpi/q60" });
-  } catch (e) {
-    // ignore — alguna versió antiga de magick pot fallar amb certs PDFs
+  // Timeouts agressius — alguns PDFs corruptes o massa grans poden penjar
+  // magick/gs indefinidament. 60s és més que suficient per a 50MB.
+  const EXEC_OPTS = { stdio: "pipe" as const, timeout: 60_000, killSignal: "SIGKILL" as const };
+
+  // A) ImageMagick rasteritzat (si està disponible)
+  if (MAGICK_CMD) {
+    try {
+      const aPath = baseOutPath + ".magick.pdf";
+      execSync(
+        `${MAGICK_CMD} -density 120 "${inPath}" -compress jpeg -quality 60 "${aPath}"`,
+        EXEC_OPTS,
+      );
+      candidates.push({ bytes: readFileSync(aPath), method: `${MAGICK_CMD}:120dpi/q60` });
+    } catch (e) {
+      // Pot fallar per policy.xml d'Ubuntu (PDF blocked per CVE 2018) o PDFs corruptes.
+    }
   }
 
   // B) Ghostscript /ebook
@@ -180,7 +205,7 @@ function compressBest(inPath: string, baseOutPath: string): { bytes: Buffer; met
       `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook ` +
         `-dNOPAUSE -dBATCH -dQUIET -dDetectDuplicateImages=true ` +
         `-sOutputFile="${bPath}" "${inPath}"`,
-      { stdio: "pipe" },
+      EXEC_OPTS,
     );
     candidates.push({ bytes: readFileSync(bPath), method: "gs:/ebook" });
   } catch (e) {
@@ -238,8 +263,20 @@ async function main() {
     process.stdout.write(`  ${ref.padEnd(38)} ${bytes(att.size).padStart(7)} → `);
 
     try {
-      const dl = await fetch(att.url);
-      if (!dl.ok) throw new Error(`download ${dl.status}`);
+      // Retry-once amb backoff 1s — les URLs signades de Airtable a vegades
+      // donen "fetch failed" sota burst (potser anti-burst del CDN).
+      let dl: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          dl = await fetch(att.url);
+          if (dl.ok) break;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
+        } catch (e) {
+          if (attempt === 1) throw e;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+      if (!dl || !dl.ok) throw new Error(`download ${dl?.status ?? "fetch failed"}`);
       const inBuf = Buffer.from(await dl.arrayBuffer());
       const inPath = join(tmpDir, r.id + ".pdf");
       const outPath = join(tmpDir, r.id + ".opt.pdf");
@@ -278,6 +315,9 @@ async function main() {
     } catch (e: any) {
       console.log(`\x1b[31mERROR\x1b[0m ${e.message?.slice(0, 80) ?? e}`);
     }
+    // Pause mínima entre records — evita burst patterns que disparen el
+    // anti-CDN d'Airtable (URLs signades tornen 5xx sota càrrega ràpida).
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   const totalSavedBytes = totalBefore - totalAfter;

@@ -38,7 +38,10 @@ const TOKEN = process.env.AIRTABLE_TOKEN ?? "";
 const BASE_ID = "appWuXncpGWaFTR4M";
 const TABLE_ID = "tbl4rihesCRul0KLB"; // Documents
 const ATTACHMENT_FIELD_ID = "fld8V3dOHiCjBOp2w"; // Fitxer
-const REFERENCIA_FIELD_ID = "fldBqUkZGqY0hpN3D"; // primary
+// REFERENCIA_FIELD_ID intencionadament NO usat als logs — el camp primary
+// d'Airtable conté noms reals (p.ex. "Pasaporte - Ahmed") i aquests logs
+// són públics (repo open-source). Loguem només el record ID (recXXX), que
+// és opac sense accés a la base.
 
 const argFlag = (n: string) => process.argv.includes(`--${n}`);
 const argVal = (n: string, def: string) =>
@@ -259,8 +262,7 @@ async function main() {
 
   for (const r of candidates) {
     const att = (r.fields[ATTACHMENT_FIELD_ID] as Attachment[])[0];
-    const ref = String(r.fields[REFERENCIA_FIELD_ID] ?? r.id).slice(0, 38);
-    process.stdout.write(`  ${ref.padEnd(38)} ${bytes(att.size).padStart(7)} → `);
+    process.stdout.write(`  ${r.id} ${bytes(att.size).padStart(7)} → `);
 
     try {
       // Retry-once amb backoff 1s — les URLs signades de Airtable a vegades
@@ -346,8 +348,7 @@ async function main() {
   let applied = 0;
   let failed = 0;
   for (const t of toApply) {
-    const ref = String(t.record.fields[REFERENCIA_FIELD_ID] ?? t.record.id).slice(0, 38);
-    process.stdout.write(`  ${ref.padEnd(38)} `);
+    process.stdout.write(`  ${t.record.id} `);
     try {
       // Patró Worker existent: clear field + upload nou. uploadAttachment
       // afegiria al camp; per sobreescriure cal el clear primer.

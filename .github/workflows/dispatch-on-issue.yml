@@ -23,9 +23,14 @@ permissions:
 
 jobs:
   dispatch:
-    # Filtre estricte: només títol exacte "Compress trigger". Si algú obre
-    # un issue normal al repo, NO dispara res.
-    if: github.event.issue.title == 'Compress trigger'
+    # Filtre estricte: títol exacte "Compress trigger" + autor andratwiro.
+    # El repo és públic (open-source per altres ONGs), així que sense filtre
+    # d'autor qualsevol amb compte GitHub podria forçar runs i regenerar logs
+    # públics. L'Automation d'Airtable usa OAuth de Rob, així que els issues
+    # legítims tenen author.login == 'andratwiro'.
+    if: |
+      github.event.issue.title == 'Compress trigger' &&
+      github.event.issue.user.login == 'andratwiro'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

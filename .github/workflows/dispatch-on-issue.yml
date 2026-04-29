@@ -1,0 +1,44 @@
+name: Dispatch optimize-pdfs from issue
+
+# Bridge entre Airtable Automation (pla gratuït) i el workflow
+# `optimize-pdfs.yml`. Airtable Free no permet "Send webhook" ni "Run
+# script", però SÍ permet "Create GitHub Issue" via integració oficial.
+#
+# Així:
+#   1. Airtable Automation crea un issue amb títol "Compress trigger"
+#      quan es puja un PDF a la taula Documents
+#   2. Aquest workflow escolta `issues.opened`, filtra pel títol,
+#      dispara optimize-pdfs.yml, i tanca l'issue amb un comentari
+#
+# El secret GITHUB_TOKEN built-in de GitHub Actions ja té els permisos
+# necessaris (declarats al `permissions:` block de sota), no cal PAT.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  actions: write   # per cridar workflow_dispatch
+  issues: write    # per tancar i comentar l'issue
+
+jobs:
+  dispatch:
+    # Filtre estricte: només títol exacte "Compress trigger". Si algú obre
+    # un issue normal al repo, NO dispara res.
+    if: github.event.issue.title == 'Compress trigger'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger optimize-pdfs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run optimize-pdfs.yml --repo "${{ github.repository }}"
+
+      - name: Close issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue close "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --comment "Dispatched optimize-pdfs.yml"

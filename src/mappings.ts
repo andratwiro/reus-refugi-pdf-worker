@@ -5,7 +5,9 @@
  */
 export const CASOS = {
   // Identificació i estat
-  codi: "fldAgEFyyG66AFvHc",
+  codi: "fldlaX9fPgFdfUCwP", // "ID Cas" (formula). L'ID antic fldAgEFyyG66AFvHc
+                              // era un camp posterior eliminat — abans del fix
+                              // /generate generava filenames "recXXX_EX31.pdf".
   estat: "fldRT05I1hBUmR6ak",
   viaLegal: "fldL8G7DffIaANwl3",
   codiFamiliar: "fld38VOHsb87FdMiH",

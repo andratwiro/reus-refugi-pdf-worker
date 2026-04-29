@@ -59,34 +59,28 @@ function parseDocOptions(html: string): MercurioOption[] {
 }
 
 /** Match d'una categoria Airtable contra el catàleg de Mercurio.
- *  Heurística: substring case-insensitive + sinònims coneguts. Si no troba
- *  res, retorna 999 (Otros) com a fallback amb warning. Aquesta lògica VIURÀ
- *  AL userscript — l'escrivim aquí primer per validar-la abans de transcriure. */
+ *  Mateixa lògica que el userscript de producció (src/mercurio/userscriptCode.ts:
+ *  resolveMercurioCode). 3 passos:
+ *    1. Exact match per label (taxonomia Airtable usa labels literals Mercurio)
+ *    2. Heurística només per "Documentación vía legal" (188/189 varia per via)
+ *    3. Fallback Otros */
 function resolveMercurioCode(category: string, options: MercurioOption[]): { code: string; label: string; matchedBy: string } {
-  const cat = category.toLowerCase();
-  // 1) Match per paraula clau coneguda. L'ordre importa: "Documentación vía
-  //    legal" pot fer match amb diverses options que comencen per
-  //    "Documentación", per això la posem ABANS de "Permanencia"/"vulnerabili-
-  //    dad" i busquem específicament la frase que conté "vulnerabilidad" o
-  //    "justificativa de presentación" (188 vs 189).
-  const patterns: Array<[RegExp, RegExp]> = [
-    [/^pasaporte/i,                    /pasaporte/i],
-    [/^antecedentes?/i,                /antecedentes/i],
-    [/^tasa$|^justifica/i,             /tasa|justificante.*abono/i],
-    [/^permanencia/i,                  /permanencia/i],
-    [/^documentaci[oó]n.*v[ií]a.*legal/i, /vulnerabilidad|justificativa de presentaci[oó]n|entidad colaboradora/i],
-    [/^otros?$/i,                      /otros documentos/i],
-  ];
-  for (const [catRe, optRe] of patterns) {
-    if (catRe.test(cat)) {
-      const found = options.find(o => optRe.test(o.label));
-      if (found) return { code: found.code, label: found.label, matchedBy: catRe.source };
-    }
+  const norm = (s: string) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const catNorm = norm(category);
+
+  // 1. Exact match
+  const exact = options.find(o => norm(o.label) === catNorm);
+  if (exact) return { code: exact.code, label: exact.label, matchedBy: 'exact' };
+
+  // 2. Heurística només per al label abstracte "Documentación vía legal..."
+  if (/^documentaci[oó]n.*v[ií]a.*legal/i.test(category)) {
+    const found = options.find(o => /vulnerabilidad|justificativa de presentaci[oó]n|entidad colaboradora/i.test(o.label));
+    if (found) return { code: found.code, label: found.label, matchedBy: 'heuristic:via-legal' };
   }
-  // 2) Fallback: option "Otros" (999 a Mercurio actual)
-  const otros = options.find(o => /otros/i.test(o.label));
+
+  // 3. Fallback Otros
+  const otros = options.find(o => /otros documentos/i.test(o.label));
   if (otros) return { code: otros.code, label: otros.label, matchedBy: 'fallback:otros' };
-  // 3) Worst case: primera option no buida
   const first = options[0];
   return { code: first.code, label: first.label, matchedBy: 'fallback:first' };
 }
@@ -207,11 +201,21 @@ async function main() {
     for (const e of errors) console.log(`   ${e.doc.filename}: ${e.result.reason}`);
     process.exit(1);
   }
-  // Verifica que cada doc té un codi Mercurio diferent (excepte si tots són
-  // Otros — no aplica al fixture). Volem confirmar que el matching distingeix.
-  const codes = new Set(results.filter(r => r.result.status === 'uploaded').map(r => r.result.resolved!.code));
+  // Verifica que cada doc s'ha resolt al codi correcte: el fixture té 5 docs
+  // de 5 categories diferents (Pasaporte, Antecedentes, Tasa, Permanencia,
+  // Documentación vía legal), així que ha d'haver-hi 5 codis únics. Si algun
+  // ha caigut a fallback, ho detectem aquí.
+  const uploaded = results.filter(r => r.result.status === 'uploaded');
+  const codes = new Set(uploaded.map(r => r.result.resolved!.code));
+  const fellbacks = uploaded.filter(r => /^fallback/.test(r.result.resolved!.matchedBy));
+  if (fellbacks.length > 0) {
+    console.log(`\n❌ ${fellbacks.length} doc(s) han caigut a fallback inesperat:`);
+    for (const r of fellbacks) console.log(`   ${r.doc.filename} (${r.doc.mercurioCategory}) → ${r.result.resolved!.matchedBy}`);
+    process.exit(1);
+  }
   if (codes.size !== ok) {
-    console.log(`\n⚠️  Atenció: només ${codes.size} codis únics per ${ok} docs — alguns han caigut a fallback?`);
+    console.log(`\n❌ Només ${codes.size} codis únics per ${ok} docs (esperats ${ok}). Mapping incorrecte.`);
+    process.exit(1);
   }
   console.log(`✅ Tots els tests passen.\n`);
   process.exit(0);

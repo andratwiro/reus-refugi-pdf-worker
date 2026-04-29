@@ -1,5 +1,5 @@
 {
-  "_comment": "Mock dels documents que tindria el cas d'REDACTED a la taula Documents d'Airtable. La taxonomia 'Mercurio tipus document' és la nova alineada amb el select de Mercurio (Pasaporte / Antecedentes penales / Tasa / Permanencia / Documentación vía legal / Otros). Cada doc apunta a un PDF físic a fixtures/pdfs/ que el mock Airtable retornarà via GET /mock/airtable/document/:slug. NO és el format real de l'API Airtable — és el format que el Worker hauria de retornar al userscript via /mercurio/documents.",
+  "_comment": "Mock dels documents que tindria el cas d'REDACTED a la taula Documents d'Airtable. La taxonomia 'Mercurio tipus document' usa els labels LITERALS del dropdown Mercurio (5 de 6) + 1 abstracta per cobrir 188/189 segons via legal. Cada doc apunta a un PDF físic a fixtures/pdfs/ que el mock Airtable retornarà via GET /mock/airtable/document/:slug. NO és el format real de l'API Airtable — és el format que el Worker hauria de retornar al userscript via /mercurio/documents.",
   "caseId": "recREDACTED00001",
   "idCas": "RR-001-REDACTED",
   "documents": [
@@ -7,7 +7,7 @@
       "airtableId": "recDOC0001",
       "filename": "passaport-REDACTED.pdf",
       "mimetype": "application/pdf",
-      "mercurioCategory": "Pasaporte",
+      "mercurioCategory": "Pasaporte, título de viaje o cédula de inscripción completos, válidos y en vigor de la persona extranjera.",
       "sizeBytes": 200,
       "_pdfSlug": "passaport-REDACTED"
     },
@@ -15,7 +15,7 @@
       "airtableId": "recDOC0002",
       "filename": "antecedents-marroc.pdf",
       "mimetype": "application/pdf",
-      "mercurioCategory": "Antecedentes penales",
+      "mercurioCategory": "Certificado de antecedentes penales del país de origen o de procedencia",
       "sizeBytes": 200,
       "_pdfSlug": "antecedents-marroc"
     },
@@ -23,7 +23,7 @@
       "airtableId": "recDOC0003",
       "filename": "tasa-790.pdf",
       "mimetype": "application/pdf",
-      "mercurioCategory": "Tasa",
+      "mercurioCategory": "Justificante del abono de la tasa obligatoria para la tramitación del procedimiento",
       "sizeBytes": 200,
       "_pdfSlug": "tasa-790"
     },
@@ -31,7 +31,7 @@
       "airtableId": "recDOC0004",
       "filename": "empadronament-2025.pdf",
       "mimetype": "application/pdf",
-      "mercurioCategory": "Permanencia",
+      "mercurioCategory": "Documentación acreditativa de la permanencia en territorio nacional antes de 1 de enero de 2026 y 5 meses ininterrumpidos antes de la solicitud",
       "sizeBytes": 200,
       "_pdfSlug": "empadronament-2025"
     },
@@ -39,7 +39,7 @@
       "airtableId": "recDOC0005",
       "filename": "informe-vulnerabilitat.pdf",
       "mimetype": "application/pdf",
-      "mercurioCategory": "Documentación vía legal",
+      "mercurioCategory": "Documentación vía legal (vulnerabilidad o presentación PI)",
       "sizeBytes": 200,
       "_pdfSlug": "informe-vulnerabilitat"
     }

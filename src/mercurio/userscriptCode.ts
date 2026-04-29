@@ -822,26 +822,32 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
   // ─── MODE PUJAR (presentacionTelematicaDocumentacion.html) ──────────
   // Match d'una categoria d'Airtable contra el select id=docAdjuntarAdjuntos
-  // del DOM. NO hardcodem codis perquè 188/189 (i potser altres futurs) varien
-  // segons via legal — el match és per substring del label de l'option, més
-  // robust a canvis numèrics. Validat amb el test E2E del mock.
+  // del DOM. Estratègia en 3 passos:
+  //   1. EXACT match per label — la taxonomia Airtable usa els labels literals
+  //      del dropdown Mercurio (5 de 6 opcions). Zero ambigüitat.
+  //   2. Heurística per substring — només cau aquí per al cas abstracte
+  //      "Documentación vía legal" que cobreix 188 (vulnerabilitat, EX-32)
+  //      i 189 (justificativa, EX-31). Mercurio renderitza un label diferent
+  //      segons via legal, així que necessitem heurística per resoldre.
+  //   3. Fallback "Otros" — categoria desconeguda → puja com a Otros documentos.
   function resolveMercurioCode(category, options) {
-    const cat = String(category || '').toLowerCase();
-    const patterns = [
-      [/^pasaporte/i,                       /pasaporte/i],
-      [/^antecedentes?/i,                   /antecedentes/i],
-      [/^tasa$|^justifica/i,                /tasa|justificante.*abono/i],
-      [/^permanencia/i,                     /permanencia/i],
-      [/^documentaci[oó]n.*v[ií]a.*legal/i, /vulnerabilidad|justificativa de presentaci[oó]n|entidad colaboradora/i],
-      [/^otros?$/i,                         /otros documentos/i],
-    ];
-    for (const [catRe, optRe] of patterns) {
-      if (catRe.test(cat)) {
-        const found = options.find(o => optRe.test(o.label));
-        if (found) return { code: found.code, label: found.label, matchedBy: catRe.source };
-      }
+    const cat = String(category || '').trim();
+
+    // 1. Exact match (case-insensitive, normalitzant whitespace)
+    const norm = s => String(s || '').trim().replace(/\\s+/g, ' ').toLowerCase();
+    const catNorm = norm(cat);
+    const exact = options.find(o => norm(o.label) === catNorm);
+    if (exact) return { code: exact.code, label: exact.label, matchedBy: 'exact' };
+
+    // 2. Heurística només per al label abstracte "Documentación vía legal..."
+    //    — qualsevol altra categoria Airtable hauria de coincidir literalment.
+    if (/^documentaci[oó]n.*v[ií]a.*legal/i.test(cat)) {
+      const found = options.find(o => /vulnerabilidad|justificativa de presentaci[oó]n|entidad colaboradora/i.test(o.label));
+      if (found) return { code: found.code, label: found.label, matchedBy: 'heuristic:via-legal' };
     }
-    const otros = options.find(o => /otros/i.test(o.label));
+
+    // 3. Fallback Otros
+    const otros = options.find(o => /otros documentos/i.test(o.label));
     if (otros) return { code: otros.code, label: otros.label, matchedBy: 'fallback:otros' };
     return options[0] ? { code: options[0].code, label: options[0].label, matchedBy: 'fallback:first' } : null;
   }

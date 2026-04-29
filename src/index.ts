@@ -39,6 +39,13 @@ export interface Env {
   REPRESENTANT_DNI: string;
   REPRESENTANT_TITOL: string;
 
+  // GitHub Actions dispatch — usat per /optimize/dispatch quan Airtable
+  // dispara una Automation després de pujar un PDF nou. PAT amb scope
+  // `workflow` (o `actions:write` pels fine-grained tokens).
+  GITHUB_TOKEN?: string;
+  GITHUB_OWNER?: string;
+  GITHUB_REPO?: string;
+
   // Public vars (wrangler.toml)
   AIRTABLE_BASE_ID: string;
   CASOS_TABLE_ID: string;
@@ -111,6 +118,9 @@ export default {
     }
     if (request.method === "GET" && url.pathname === "/mercurio/document") {
       return handleMercurioDocument(request, env);
+    }
+    if (request.method === "POST" && url.pathname === "/optimize/dispatch") {
+      return handleOptimizeDispatch(request, env);
     }
 
     return json({ error: "Not found" }, 404);
@@ -697,6 +707,81 @@ async function handleMercurioDocument(request: Request, env: Env): Promise<Respo
       ...corsHeaders(request),
     },
   });
+}
+
+// ─── /optimize/dispatch ─────────────────────────────────────────────────────
+//
+// Endpoint cridat des d'una Airtable Automation quan es puja un PDF a la
+// taula Documents. Dispara el workflow `optimize-pdfs.yml` de GitHub Actions
+// que executa scripts/optimize-airtable-pdfs.ts (gs+ImageMagick al runner).
+//
+// Setup Airtable Automation:
+//   Trigger:  When record is created/updated  →  Documents (taula)
+//   Filter:   "Fitxer" is not empty
+//   Action:   Send webhook
+//             URL    = https://<worker>/optimize/dispatch
+//             Method = POST
+//             Header = Authorization: Bearer <SHARED_SECRET>
+//             Body   = (qualsevol cosa, no es parseja)
+//
+// El workflow té concurrency=1, així que múltiples dispatches en burst
+// s'encuen i el segon no troba res a fer (idempotència de l'script).
+//
+// Setup PAT GitHub:
+//   1. Crear fine-grained PAT a https://github.com/settings/tokens?type=beta
+//      Scope: Actions = Read & write, restringit al repo.
+//   2. `npx wrangler secret put GITHUB_TOKEN`
+//   3. Editar wrangler.toml [vars] amb GITHUB_OWNER + GITHUB_REPO
+//      (o passar com a env al deploy).
+async function handleOptimizeDispatch(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+
+  const ghToken = env.GITHUB_TOKEN;
+  const owner = env.GITHUB_OWNER ?? "andratwiro";
+  const repo = env.GITHUB_REPO ?? "reus-refugi-pdf-worker";
+  const workflow = "optimize-pdfs.yml";
+
+  if (!ghToken) {
+    return corsJson(
+      { error: "GITHUB_TOKEN not configured. See /optimize/dispatch JSDoc." },
+      request,
+      500,
+    );
+  }
+
+  try {
+    const resp = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ghToken}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          // GitHub API requereix User-Agent.
+          "User-Agent": "reus-refugi-pdf-worker",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      },
+    );
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      console.error(`GitHub dispatch failed ${resp.status}:`, body);
+      return corsJson(
+        { error: `GitHub dispatch ${resp.status}`, detail: body.slice(0, 300) },
+        request,
+        502,
+      );
+    }
+    // GitHub respon 204 sense body en èxit.
+    return corsJson({ ok: true, dispatched: workflow, owner, repo }, request);
+  } catch (err) {
+    console.error("optimize/dispatch error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return corsJson({ ok: false, error: message }, request, 500);
+  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

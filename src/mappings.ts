@@ -60,10 +60,11 @@ export const CASOS = {
 } as const;
 
 /**
- * Real data from the Generalitat de Catalunya's association registry (form J0225,
- * Inscripció de dades registrals — Òrgans de govern, 64431 al Registre d'Associacions).
+ * Public entity data from the Generalitat de Catalunya's association registry
+ * (form J0225, 64431 al Registre d'Associacions). PII fields (telefon,
+ * representantNom/Dni/Titol) live in env secrets — see buildEntitat() in index.ts.
  */
-export const ENTITAT_REUS_REFUGI = {
+export const ENTITAT_REUS_REFUGI_BASE = {
   nom: "ASSOCIACIÓ REUS REFUGI",
   nif: "G55739866",
 
@@ -74,15 +75,27 @@ export const ENTITAT_REUS_REFUGI = {
   cp: "43201",
   provincia: "TARRAGONA",
 
-  telefon: "REDACTED",
   email: "info@reusrefugi.cat",
 
   recexNum: "",
+} as const;
 
-  representantNom: "REDACTED",
-  representantDni: "REDACTED",
-  representantTitol: "PRESIDENTE",
-};
+export interface EntitatConfig {
+  nom: string;
+  nif: string;
+  domiciliCarrer: string;
+  domiciliNum: string;
+  domiciliPis: string;
+  localitat: string;
+  cp: string;
+  provincia: string;
+  email: string;
+  recexNum: string;
+  telefon: string;
+  representantNom: string;
+  representantDni: string;
+  representantTitol: string;
+}
 
 /**
  * Mapping d'una circumstància de vulnerabilitat (text d'Airtable) al número

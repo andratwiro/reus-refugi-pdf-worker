@@ -186,14 +186,21 @@ npx wrangler secret put PRESENTADOR_TIPODOC  # NF (NIE) | NV (DNI) | PA (passapo
 npx wrangler secret put PRESENTADOR_MOBIL
 npx wrangler secret put PRESENTADOR_EMAIL
 
-# 5. Defineix els secrets de Gmail (opcional, només si uses /gmail-draft)
+# 5. Defineix les dades PII de l'entitat (telèfon + representant legal)
+#    — necessari per omplir les seccions 2/3 dels EX-31/EX-32 i la capçalera de l'Annex II
+npx wrangler secret put ENTITAT_TELEFON      # mòbil de contacte de l'entitat
+npx wrangler secret put REPRESENTANT_NOM     # "NOM COGNOM1 COGNOM2" majúscules
+npx wrangler secret put REPRESENTANT_DNI     # DNI/NIE del representant legal
+npx wrangler secret put REPRESENTANT_TITOL   # ex. "PRESIDENTE", "SECRETARIO"
+
+# 6. Defineix els secrets de Gmail (opcional, només si uses /gmail-draft)
 npx wrangler secret put GAS_WEBAPP_URL
 npx wrangler secret put GAS_SHARED_SECRET
 
-# 6. Edita wrangler.toml amb els IDs de la teva base d'Airtable
+# 7. Edita wrangler.toml amb els IDs de la teva base d'Airtable
 # (AIRTABLE_BASE_ID, CASOS_TABLE_ID, INFORMES_VULN_TABLE_ID, etc.)
 
-# 7. Push a main → Cloudflare Workers Builds desplega automàticament.
+# 8. Push a main → Cloudflare Workers Builds desplega automàticament.
 git push origin main
 ```
 
@@ -259,13 +266,19 @@ vistes i automatitzacions des de zero. Després només cal:
 
 1. Connectar el formulari de Tally (o el teu propi punt d'entrada) a la taula `Casos`.
 2. Substituir els IDs de base i taula a `wrangler.toml` pels de la teva còpia.
-3. Configurar els secrets de l'entitat (`PRESENTADOR_*`).
+3. Configurar els secrets de l'entitat (`PRESENTADOR_*`, `ENTITAT_TELEFON`, `REPRESENTANT_*`).
 
 ### Hard-codings específics
 
-- El **presentador** (representant acreditat que signa les sol·licituds) es
-  configura via els 5 secrets `PRESENTADOR_*`. Cada entitat ha de fer-ho amb
-  les seves pròpies dades — no hi ha valors per defecte al codi.
+- El **presentador** (representant acreditat que signa les sol·licituds via
+  Mercurio) es configura via els 5 secrets `PRESENTADOR_*`. Cada entitat ha de
+  fer-ho amb les seves pròpies dades — no hi ha valors per defecte al codi.
+- El **representant legal** de l'entitat (qui signa els PDFs EX-31/EX-32 i
+  apareix a la capçalera de l'Annex II) es configura via `ENTITAT_TELEFON` i
+  els 3 secrets `REPRESENTANT_*`. Cap valor PII queda al codi.
+- Les dades públiques de l'entitat (nom, NIF, domicili, email del registre
+  d'associacions) viuen a `ENTITAT_REUS_REFUGI_BASE` a `src/mappings.ts` —
+  cada fork ha d'editar aquesta constant amb les dades de la seva entitat.
 - `wrangler.toml` apunta a la base d'Airtable Venus de Reus Refugi
   (`appWuXncpGWaFTR4M`). Cada entitat té la seva pròpia base; cal canviar tots
   els IDs.

@@ -1,7 +1,7 @@
 import { PDFDocument, PDFForm } from "pdf-lib";
 import {
   CASOS,
-  ENTITAT_REUS_REFUGI,
+  type EntitatConfig,
   CIRCUMSTANCIA_CASILLA,
   SECTION5_EX31,
   SECTION5_EX32,
@@ -17,6 +17,12 @@ import {
 export type FormCode = "EX31" | "EX32";
 
 export interface FillOptions {
+  /**
+   * Entity config (Reus Refugi). Public fields come from ENTITAT_REUS_REFUGI_BASE
+   * in mappings.ts; PII fields (telefon, representant*) come from env secrets.
+   * Built via buildEntitat(env) in index.ts.
+   */
+  entitat: EntitatConfig;
   /**
    * First simultaneous applicant (family member) whose data should be filled
    * into section 5 of the main form's page 2. Subsequent applicants (if any)
@@ -36,7 +42,7 @@ type AirtableRecordLike = { id: string; fields: Record<string, unknown> };
 export type FillFn = (
   templateBytes: ArrayBuffer,
   record: AirtableRecordLike,
-  options?: FillOptions,
+  options: FillOptions,
 ) => Promise<Uint8Array>;
 
 export interface TemplateInfo {
@@ -53,13 +59,13 @@ export interface TemplateInfo {
 export async function fillCasPdf(
   templateBytes: ArrayBuffer,
   record: AirtableRecordLike,
-  options: FillOptions = {},
+  options: FillOptions,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const form = pdfDoc.getForm();
 
   const f = record.fields;
-  const E = ENTITAT_REUS_REFUGI;
+  const E = options.entitat;
 
   const str = makeStr(f);
   const rawStr = makeRawStr(f);
@@ -122,7 +128,7 @@ export async function fillCasPdf(
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
   // ── Seccions 2 i 3 — Representant + notificacions ───────────────────────
-  fillEntitySections(setText);
+  fillEntitySections(setText, E);
 
   // ── Secció 4 — Decision tree ────────────────────────────────────────────
   if (viaLegal.includes("DA 21ª – Laboral")) {
@@ -181,7 +187,7 @@ export async function fillCasPdf(
     setText("Texto145", E.nom);
     setText("Texto146", E.nif);
     setText("Texto147", E.recexNum);
-    setText("Texto148", composeEntityAddressOneLine());
+    setText("Texto148", composeEntityAddressOneLine(E));
     setText("Texto149", `${E.telefon} / ${E.email}`);
     setText("Texto150", `${nom} ${cognom1} ${cognom2}`.trim());
     setText("Texto151", passaport);
@@ -220,13 +226,13 @@ export async function fillCasPdf(
 export async function fillEx31Pdf(
   templateBytes: ArrayBuffer,
   record: AirtableRecordLike,
-  options: FillOptions = {},
+  options: FillOptions,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const form = pdfDoc.getForm();
 
   const f = record.fields;
-  const E = ENTITAT_REUS_REFUGI;
+  const E = options.entitat;
 
   const str = makeStr(f);
   const rawStr = makeRawStr(f);
@@ -289,7 +295,7 @@ export async function fillEx31Pdf(
   if (civil in civilMap) check(`Casilla de verificación${civilMap[civil]}`);
 
   // Seccions 2 i 3 — Representant + notificacions
-  fillEntitySections(setText);
+  fillEntitySections(setText, E);
 
   // Secció 4
   check("Casilla de verificación148");
@@ -515,9 +521,8 @@ async function embedSignature(
  */
 function fillEntitySections(
   setText: (fieldName: string, value: string) => void,
+  E: EntitatConfig,
 ): void {
-  const E = ENTITAT_REUS_REFUGI;
-
   // §2 — DATOS DEL REPRESENTANTE A EFECTOS DE PRESENTACIÓN DE LA SOLICITUD
   setText("Texto27", E.nom);
   setText("Texto28", E.nif);
@@ -551,8 +556,7 @@ function fillEntitySections(
  * Compose the entity's full postal address as one line, for sections of the
  * form that have only a single "Dirección" field (e.g. Annex II §1).
  */
-function composeEntityAddressOneLine(): string {
-  const E = ENTITAT_REUS_REFUGI;
+function composeEntityAddressOneLine(E: EntitatConfig): string {
   return [
     `${E.domiciliCarrer} ${E.domiciliNum}`.trim(),
     E.domiciliPis,

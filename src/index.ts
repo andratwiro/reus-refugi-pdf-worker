@@ -11,7 +11,7 @@
 import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
-import { CASOS } from "./mappings";
+import { CASOS, ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 
@@ -31,6 +31,13 @@ export interface Env {
   PRESENTADOR_TIPODOC: string; // 'NF' | 'NV' | 'PA'
   PRESENTADOR_MOBIL: string;
   PRESENTADOR_EMAIL: string;
+
+  // Entitat — dades PII de l'entitat i del representant legal. Configurar
+  // via `npx wrangler secret put ENTITAT_TELEFON` / `REPRESENTANT_*`.
+  ENTITAT_TELEFON: string;
+  REPRESENTANT_NOM: string;
+  REPRESENTANT_DNI: string;
+  REPRESENTANT_TITOL: string;
 
   // Public vars (wrangler.toml)
   AIRTABLE_BASE_ID: string;
@@ -130,6 +137,15 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
   const fieldId = env.DOSSIER_FIELD_ID;
   const airtable = new AirtableClient(env.AIRTABLE_TOKEN, baseId);
 
+  const entitat = buildEntitat(env);
+  if (!entitat) {
+    return corsJson(
+      { error: "ENTITAT_TELEFON / REPRESENTANT_* secrets not configured. See README → Setup." },
+      request,
+      500,
+    );
+  }
+
   try {
     const record = await airtable.getRecord(tableId, body.recordId);
 
@@ -158,6 +174,7 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
     const templateBytes = await templateResp.arrayBuffer();
 
     let filledBytes = await fill(templateBytes, record, {
+      entitat,
       firstDependent,
       signatureBytes,
     });
@@ -704,6 +721,24 @@ function buildPresentador(env: Env): PresentadorConfig | null {
     tipoDoc: PRESENTADOR_TIPODOC as PresentadorConfig["tipoDoc"],
     mobil: PRESENTADOR_MOBIL,
     email: PRESENTADOR_EMAIL,
+  };
+}
+
+/**
+ * Build EntitatConfig combining public registry data (ENTITAT_REUS_REFUGI_BASE)
+ * with PII fields from env secrets. Returns null if any PII secret is missing.
+ */
+function buildEntitat(env: Env): EntitatConfig | null {
+  const { ENTITAT_TELEFON, REPRESENTANT_NOM, REPRESENTANT_DNI, REPRESENTANT_TITOL } = env;
+  if (!ENTITAT_TELEFON || !REPRESENTANT_NOM || !REPRESENTANT_DNI || !REPRESENTANT_TITOL) {
+    return null;
+  }
+  return {
+    ...ENTITAT_REUS_REFUGI_BASE,
+    telefon: ENTITAT_TELEFON,
+    representantNom: REPRESENTANT_NOM,
+    representantDni: REPRESENTANT_DNI,
+    representantTitol: REPRESENTANT_TITOL,
   };
 }
 

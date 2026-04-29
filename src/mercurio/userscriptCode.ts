@@ -760,7 +760,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     }
   }
 
-  // Parseig: "RR-003-REDACTED--REDACTED" → "RR-003"
+  // Parseig: "RR-003-COGNOM--COGNOM" → "RR-003"
   function shortIdCas(idCas) {
     const m = String(idCas || '').match(/^(RR-\\d+)/);
     return m ? m[1] : (idCas || '');

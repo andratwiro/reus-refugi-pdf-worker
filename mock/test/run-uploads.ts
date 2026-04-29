@@ -31,7 +31,7 @@
  */
 
 const MOCK_URL = process.env.MOCK_URL ?? 'http://localhost:3001';
-const TEST_CASO = 'recREDACTED00001';
+const TEST_CASO = 'recCASE01000000001';
 
 interface AirtableDoc {
   airtableId: string;

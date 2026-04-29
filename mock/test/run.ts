@@ -41,13 +41,13 @@ interface TestCase {
 }
 
 const CASES: TestCase[] = [
-  { fixture: 'REDACTED.json', notes: 'Cas real RR-001. DA 21ª Vulnerabilitat. Codis estimats.' },
+  { fixture: 'case01.json', notes: 'Sintètic. DA 21ª Vulnerabilitat amb circumstàncies.' },
   {
-    fixture: 'REDACTED.json',
-    notes: 'Cas real RR-002. Sense domicili a Airtable → errors d\'adreça esperats.',
+    fixture: 'case02.json',
+    notes: 'Sintètic. DA 20ª sense domicili → errors d\'adreça esperats (test de robustesa).',
     expectFailures: ['extTipoVia', 'extDomicilio', 'extNumero', 'extCodigoMunicipio', 'extCodigoPostal'],
   },
-  { fixture: 'REDACTED.json', notes: 'Cas real RR-003. DA 20ª Sol·licitant PI. Codis estimats.' },
+  { fixture: 'case03.json', notes: 'Sintètic. DA 20ª complet amb NIE i contracte.' },
   { fixture: 'banda-ibrahim.json', notes: 'Sintètic. DA 21ª Laboral, principal de família.' },
   { fixture: 'banda-fatou.json', refFixture: 'banda-ibrahim.json', notes: 'Sintètic. Cònjuge dependent d\'Ibrahim.' },
   { fixture: 'banda-amadou.json', refFixture: 'banda-ibrahim.json', notes: 'Sintètic. Fill menor dependent d\'Ibrahim.' },

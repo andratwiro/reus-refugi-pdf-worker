@@ -1,15 +1,15 @@
 {
-  "_comment": "Mock dels documents que tindria el cas d'REDACTED a la taula Documents d'Airtable. La taxonomia 'Mercurio tipus document' usa els labels LITERALS del dropdown Mercurio (5 de 6) + 1 abstracta per cobrir 188/189 segons via legal. Cada doc apunta a un PDF físic a fixtures/pdfs/ que el mock Airtable retornarà via GET /mock/airtable/document/:slug. NO és el format real de l'API Airtable — és el format que el Worker hauria de retornar al userscript via /mercurio/documents.",
-  "caseId": "recREDACTED00001",
-  "idCas": "RR-001-REDACTED",
+  "_comment": "Mock dels documents que tindria el cas case01 a la taula Documents d'Airtable. La taxonomia 'Mercurio tipus document' usa els labels LITERALS del dropdown Mercurio (5 de 6) + 1 abstracta per cobrir 188/189 segons via legal. Cada doc apunta a un PDF físic a fixtures/pdfs/ que el mock Airtable retornarà via GET /mock/airtable/document/:slug. NO és el format real de l'API Airtable — és el format que el Worker hauria de retornar al userscript via /mercurio/documents.",
+  "caseId": "recCASE01000000001",
+  "idCas": "RR-SYN-VULN-001",
   "documents": [
     {
       "airtableId": "recDOC0001",
-      "filename": "passaport-REDACTED.pdf",
+      "filename": "passaport-case01.pdf",
       "mimetype": "application/pdf",
       "mercurioCategory": "Pasaporte, título de viaje o cédula de inscripción completos, válidos y en vigor de la persona extranjera.",
       "sizeBytes": 200,
-      "_pdfSlug": "passaport-REDACTED"
+      "_pdfSlug": "passaport-case01"
     },
     {
       "airtableId": "recDOC0002",

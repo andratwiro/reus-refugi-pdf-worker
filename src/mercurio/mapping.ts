@@ -162,7 +162,7 @@ export function airtableToMercurio(
   const viaLegal = fStr(rec, 'Via legal');
   const viaCfg = VIA_LEGAL_MAP[viaLegal] ?? VIA_LEGAL_MAP['DA 21ª – Laboral'];
 
-  // Trim whitespace from name fields (REDACTED had "REDACTED ")
+  // Trim whitespace from name fields — Airtable inputs occasionally have trailing spaces.
   const nom = fStr(rec, 'Nom').trim().toUpperCase();
   const cog1 = fStr(rec, '1r cognom').trim().toUpperCase();
   const cog2 = fStr(rec, '2n cognom').trim().toUpperCase();

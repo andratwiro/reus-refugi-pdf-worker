@@ -364,12 +364,12 @@ const AIRTABLE_FIXTURES_DIR = resolve(__dirname, '../test/fixtures/uploads');
 
 app.get('/mock/airtable/documents', (req, res) => {
   const caso = String(req.query.caso ?? '');
-  // Per ara només tenim REDACTED. Si demanen un altre cas, error.
-  if (!caso || !/REDACTED/i.test(caso)) {
-    return res.status(404).json({ error: `no fixture for caso=${caso}. Try caso=recREDACTED00001` });
+  // Per ara només tenim case01. Si demanen un altre cas, error.
+  if (!caso || !/case01/i.test(caso)) {
+    return res.status(404).json({ error: `no fixture for caso=${caso}. Try caso=recCASE01000000001` });
   }
   try {
-    const fixture = JSON.parse(readFileSync(join(AIRTABLE_FIXTURES_DIR, 'REDACTED-documents.json'), 'utf-8'));
+    const fixture = JSON.parse(readFileSync(join(AIRTABLE_FIXTURES_DIR, 'case01-documents.json'), 'utf-8'));
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const docs = (fixture.documents as any[]).map(d => ({
       airtableId: d.airtableId,

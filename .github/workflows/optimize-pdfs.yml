@@ -1,0 +1,56 @@
+name: Optimize Airtable PDFs
+
+# Comprimeix els PDFs grans pujats a la taula Documents d'Airtable.
+#
+# TRIGGER NOMÉS MANUAL — l'script (scripts/optimize-airtable-pdfs.ts) és
+# idempotent, però els voluntaris fan tasques en finestres curtes (30-40min,
+# 1-2 cops/setmana) i no cal cron 24/7. Quan calgui:
+#   1. Pestanya "Actions" del repo → "Optimize Airtable PDFs" → "Run workflow"
+#   2. O via gh CLI: `gh workflow run optimize-pdfs.yml`
+#   3. O via curl: POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/optimize-pdfs.yml/dispatches
+# Triga ~3 min en acabar. Salta PDFs ja optimitzats automàticament.
+#
+# COST: $0. Repos públics tenen Actions gratuïts sense límit.
+#
+# REQUISITS: secret `AIRTABLE_TOKEN` configurat al repo (Settings → Secrets
+# → Actions → New). Token amb scopes data.records:read + data.records:write
+# + schema.bases:read, restringit a la base Venus.
+
+on:
+  workflow_dispatch:
+
+# Evita runs concurrents — si dispares dues vegades seguides, el segon espera
+# que el primer acabi (no es cancel·la per evitar deixar attachments mig-buits).
+concurrency:
+  group: optimize-pdfs
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ghostscript + imagemagick
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ghostscript imagemagick
+          # Ubuntu's ImageMagick policy.xml bloqueja PDF per CVE-2018-16323.
+          # El nostre cas d'ús és intern + token-protected, així que el
+          # desbloquegem per a aquest runner. NO posis aquesta config a un
+          # servidor public.
+          sudo sed -i 's|<policy domain="coder" rights="none" pattern="PDF" />|<policy domain="coder" rights="read\|write" pattern="PDF" />|' /etc/ImageMagick-6/policy.xml || true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run optimization
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+        run: npx tsx scripts/optimize-airtable-pdfs.ts --apply

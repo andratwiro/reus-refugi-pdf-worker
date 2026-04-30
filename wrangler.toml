@@ -33,9 +33,9 @@ binding = "ASSETS"
 #   2. Copia l'ID retornat al bloc [[kv_namespaces]] de sota i descomenta'l.
 #   3. Puja els PNGs amb `wrangler kv key put`.
 #
-# [[kv_namespaces]]
+[[kv_namespaces]]
 # binding = "PRIVATE_BINARIES"
-# id = "<ID retornat per `kv namespace create`>"
+id = "b02bf2982239407f836a23afe1d230bd"
 
 # Logs & observability
 [observability]

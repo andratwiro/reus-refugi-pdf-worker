@@ -271,8 +271,12 @@ export function airtableToMercurio(
     datosForAut: viaCfg.idOpcionAutorizacion,
     // Camp dinàmic — només apareix al DOM si datosForAut=284 (DA 20ª PI).
     // Es resol via Phase 1 del userscript (datosForAut + 400ms wait abans
-    // d'iterar la resta de camps).
-    expAsilo: fStr(rec, 'N.º expedient asil'),
+    // d'iterar la resta de camps). Per casos no-PI (DA 21ª*), Mercurio NO
+    // renderitza aquest input al DOM i el userscript reportaria 'not_found'
+    // — sorollós i confús al panell. Per això el spread condicional.
+    ...(/Sol·licitant PI/.test(viaLegal)
+      ? { expAsilo: fStr(rec, 'N.º expedient asil') }
+      : {}),
 
     // ─── Decla checkboxes ───────────────────────────────────
     chkDecla1: 'true',

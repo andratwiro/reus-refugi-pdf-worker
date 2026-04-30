@@ -71,7 +71,6 @@ export async function fillAnexo2Pdf(
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const pages = pdfDoc.getPages();
   const f = record.fields;
   const E = options.entitat;
@@ -100,20 +99,35 @@ export async function fillAnexo2Pdf(
     });
   };
 
+  // Igual que als textos, els rects dels widgets (extrets del PDF original
+  // amb AcroForm) cauen ~4pt per sota dels quadrats □ que el PDF oficial té
+  // dibuixats al background. Compensem amb un offset Y.
+  const CHECK_Y_OFFSET = 4;
+
   const drawCheckAt = (key: string): void => {
     const c = ANEXO2_COORDS[key];
     if (!c || c.type !== "check") return;
     const page = pages[c.page];
     if (!page) return;
-    // El glyph "X" d'Helvetica Bold a una mida igual a l'alçada del box queda
-    // visualment ben centrat amb aquests offsets — calibrats pel PDF generat
-    // a producció. Amplada/alçada del rect dels checkboxes ronda 6.3 × 7.7 pt.
-    const size = Math.max(c.w, c.h) + 2;
-    page.drawText("X", {
-      x: c.x + c.w / 2 - size * 0.27,
-      y: c.y + c.h / 2 - size * 0.32,
-      size,
-      font: helveticaBold,
+    // Dibuixem la "X" com a dues línies creuades dins del rect, amb un petit
+    // marge per no tocar les vores del quadrat. Més robust que drawText:
+    // independent de font metrics i sempre proporcionalment centrat.
+    const m = 0.15;
+    const x1 = c.x + c.w * m;
+    const x2 = c.x + c.w * (1 - m);
+    const y1 = c.y + c.h * m + CHECK_Y_OFFSET;
+    const y2 = c.y + c.h * (1 - m) + CHECK_Y_OFFSET;
+    const thickness = Math.max(0.8, c.h * 0.13);
+    page.drawLine({
+      start: { x: x1, y: y1 },
+      end: { x: x2, y: y2 },
+      thickness,
+      color: rgb(0, 0, 0),
+    });
+    page.drawLine({
+      start: { x: x1, y: y2 },
+      end: { x: x2, y: y1 },
+      thickness,
       color: rgb(0, 0, 0),
     });
   };

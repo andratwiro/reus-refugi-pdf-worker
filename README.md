@@ -212,9 +212,9 @@ cp /ruta/a/la/teva/firma.png  src/private/representative-signature.png
 npx wrangler kv namespace create PRIVATE_BINARIES
 # (descomenta el bloc [[kv_namespaces]] de wrangler.toml amb l'ID retornat)
 npx wrangler kv key put --binding PRIVATE_BINARIES "entity-stamp" \
-    --path src/private/entity-stamp.png --remote
+    --path src/private/entity-stamp.png
 npx wrangler kv key put --binding PRIVATE_BINARIES "representative-signature" \
-    --path src/private/representative-signature.png --remote
+    --path src/private/representative-signature.png
 
 # 10. Push a main → Cloudflare Workers Builds desplega automàticament.
 git push origin main

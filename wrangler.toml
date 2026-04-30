@@ -34,7 +34,7 @@ binding = "ASSETS"
 #   3. Puja els PNGs amb `wrangler kv key put`.
 #
 [[kv_namespaces]]
-# binding = "PRIVATE_BINARIES"
+binding = "PRIVATE_BINARIES"
 id = "b02bf2982239407f836a23afe1d230bd"
 
 # Logs & observability

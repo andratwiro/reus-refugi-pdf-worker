@@ -30,13 +30,13 @@ npx wrangler kv namespace create PRIVATE_BINARIES
 # 3. Puja els PNGs al KV (els bytes són privats — només accessibles via el
 #    binding del worker, mai per URL):
 npx wrangler kv key put --binding PRIVATE_BINARIES \
-    "entity-stamp" --path src/private/entity-stamp.png --remote
+    "entity-stamp" --path src/private/entity-stamp.png
 
 npx wrangler kv key put --binding PRIVATE_BINARIES \
-    "representative-signature" --path src/private/representative-signature.png --remote
+    "representative-signature" --path src/private/representative-signature.png
 
 # 4. Verifica que les keys estan pujades:
-npx wrangler kv key list --binding PRIVATE_BINARIES --remote
+npx wrangler kv key list --binding PRIVATE_BINARIES
 ```
 
 ## Per què KV i no `[[rules]] type="Data"` a wrangler.toml?

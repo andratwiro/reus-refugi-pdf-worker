@@ -11,12 +11,6 @@
 import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
-
-// Binaris privats empotrats al bundle del worker via `[[rules]] type="Data"`
-// (vegeu wrangler.toml). Gitignored — cada ONG hi posa els seus a
-// src/private/ abans de fer wrangler deploy. Vegeu src/private/README.md.
-import entityStampPng from "./private/entity-stamp.png";
-import representativeSignaturePng from "./private/representative-signature.png";
 import { CASOS, ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
@@ -62,6 +56,13 @@ export interface Env {
 
   // Assets binding
   ASSETS: Fetcher;
+
+  // KV namespace amb el segell de l'entitat i la firma del representant
+  // (PNG bytes amb keys "entity-stamp" i "representative-signature").
+  // Optional: si el binding no està configurat al wrangler.toml o les
+  // keys no existeixen, el certificat A2 es genera sense aquells elements.
+  // Vegeu src/private/README.md per a setup.
+  PRIVATE_BINARIES?: KVNamespace;
 }
 
 interface GenerateRequest {
@@ -281,6 +282,11 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
       throw new Error(`Failed to load anexo II template: ${templateResp.status}`);
     }
     const templateBytes = await templateResp.arrayBuffer();
+
+    const [entityStampPng, representativeSignaturePng] = await Promise.all([
+      env.PRIVATE_BINARIES?.get("entity-stamp", "arrayBuffer") ?? null,
+      env.PRIVATE_BINARIES?.get("representative-signature", "arrayBuffer") ?? null,
+    ]);
 
     const pdfBytes = await fillAnexo2Pdf(templateBytes, record, {
       entitat,

@@ -205,10 +205,16 @@ npx wrangler secret put GAS_SHARED_SECRET
 # 8. Edita ENTITAT_REUS_REFUGI_BASE a src/mappings.ts amb les dades
 # públiques de la teva entitat (nom, NIF, adreça, RECEX, tipusEntitat).
 
-# 9. Posa segell + firma del representant a src/private/
+# 9. Posa segell + firma del representant a src/private/ i puja'ls a KV
 #    (gitignored — no han d'estar mai al repo públic; vegeu src/private/README.md)
 cp /ruta/al/teu/segell.png    src/private/entity-stamp.png
 cp /ruta/a/la/teva/firma.png  src/private/representative-signature.png
+npx wrangler kv namespace create PRIVATE_BINARIES
+# (descomenta el bloc [[kv_namespaces]] de wrangler.toml amb l'ID retornat)
+npx wrangler kv key put --binding PRIVATE_BINARIES "entity-stamp" \
+    --path src/private/entity-stamp.png --remote
+npx wrangler kv key put --binding PRIVATE_BINARIES "representative-signature" \
+    --path src/private/representative-signature.png --remote
 
 # 10. Push a main → Cloudflare Workers Builds desplega automàticament.
 git push origin main
@@ -299,17 +305,22 @@ vistes i automatitzacions des de zero. Després només cal:
   ets una administració pública competent en assistència social, o
   `"tercer_sector"` si ets una entitat del Tercer Sector inscrita al RECEX.
 - El **segell de l'entitat** i la **firma manuscrita del representant** que
-  apareixen a la zona de signatura de l'Annex II viuen a `src/private/*.png`.
-  Aquest directori està **gitignored** i els fitxers s'empotren al bundle del
-  worker via `[[rules]] type="Data"` a `wrangler.toml` (no s'exposen via la
-  URL del worker). Cada entitat ha de proporcionar els seus propis PNGs
-  abans del primer `wrangler deploy`. Vegeu
-  [`src/private/README.md`](src/private/README.md) per a especificacions.
+  apareixen a la zona de signatura de l'Annex II viuen a un **KV namespace
+  privat** de Cloudflare (no al repo, no al binding ASSETS). El directori
+  `src/private/` és la font local dels PNGs (gitignored) i només s'utilitza
+  per pujar els bytes a KV un sol cop amb `wrangler kv key put`. El worker
+  els llegeix a runtime via el binding `PRIVATE_BINARIES`. Vegeu
+  [`src/private/README.md`](src/private/README.md) per al setup pas a pas.
 
-  > 🔒 **Per què gitignored?** Si el segell estigués al repo públic, qualsevol
-  > el podria descarregar i estampar a documents falsos suplantant l'entitat.
-  > Per això els binaris no poden viure ni a `assets/` (servit públicament
-  > via el binding ASSETS) ni al git history.
+  > 🔒 **Per què KV i no `assets/` o un binding `[[rules]] type="Data"`?**
+  > 1. `assets/` s'exposa a la URL pública del worker — qualsevol amb la URL
+  >    podria descarregar el segell i estampar-lo a documents falsos.
+  > 2. `[[rules]] type="Data"` empotra els fitxers al bundle del worker però
+  >    requereix que estiguin al disc al moment del `wrangler deploy` o el
+  >    build de Cloudflare Workers Builds. Com que els PNGs són gitignored,
+  >    el clon de CF Builds no els tindria → build fail.
+  > KV té els bytes al servei privat Cloudflare i el worker els llegeix
+  > només via el binding — mai exposats per cap URL.
 
 - `wrangler.toml` apunta a la base d'Airtable Venus de Reus Refugi
   (`appWuXncpGWaFTR4M`). Cada entitat té la seva pròpia base; cal canviar tots

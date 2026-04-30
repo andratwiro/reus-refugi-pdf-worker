@@ -18,16 +18,24 @@ directory = "./assets"
 binding = "ASSETS"
 
 # Private binaries — el segell de l'entitat i la firma del representant viuen
-# a src/private/*.png i s'empotren al bundle del worker com a ArrayBuffer
-# (importats via `import stamp from "./private/entity-stamp.png"`). NO els
-# servim via el binding ASSETS perquè qualsevol amb la URL podria descarregar-
-# los i estampar-los a documents falsos. Els fitxers reals estan gitignored
-# (vegeu .gitignore i src/private/README.md). Cada ONG en proporciona els seus
-# abans de fer `npx wrangler deploy`.
-[[rules]]
-type = "Data"
-globs = ["src/private/*.png"]
-fallthrough = true
+# a un KV namespace (NO al repo). Es llegeixen a runtime amb keys
+# "entity-stamp" i "representative-signature" (PNG bytes). Si el binding o
+# alguna key no existeix, el certificat A2 es genera sense aquell element
+# (no falla).
+#
+# NO es poden empotrar al bundle del worker (com es feia abans amb
+# `[[rules]] type="Data"`) perquè els fitxers font són gitignored: el build
+# de Cloudflare Workers Builds no els tindria al checkout i fallaria.
+#
+# Setup d'una vegada — vegeu src/private/README.md per a instruccions
+# completes. En resum:
+#   1. npx wrangler kv namespace create PRIVATE_BINARIES
+#   2. Copia l'ID retornat al bloc [[kv_namespaces]] de sota i descomenta'l.
+#   3. Puja els PNGs amb `wrangler kv key put`.
+#
+# [[kv_namespaces]]
+# binding = "PRIVATE_BINARIES"
+# id = "<ID retornat per `kv namespace create`>"
 
 # Logs & observability
 [observability]

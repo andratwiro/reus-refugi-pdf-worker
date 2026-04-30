@@ -22,11 +22,14 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { fillAnexo2Pdf } from "../src/anexo2.js";
+import { ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "../src/mappings.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "..");
 const TEMPLATE = path.join(REPO_ROOT, "assets/A2_certificado_vulnerabilidad.pdf");
+const STAMP = path.join(REPO_ROOT, "src/private/entity-stamp.png");
+const SIGNATURE = path.join(REPO_ROOT, "src/private/representative-signature.png");
 const OUT_DIR = path.join(__dirname, "anexo2-test-out");
 
 // Cas real del bug: Taoufiq Elhayani (IV-022). Valors agafats del screenshot
@@ -55,16 +58,38 @@ const MOCK_RECORD = {
   },
 };
 
+async function readBytes(file: string): Promise<ArrayBuffer | null> {
+  try {
+    const buf = await fs.readFile(file);
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+  } catch {
+    return null;
+  }
+}
+
 async function main(): Promise<void> {
   console.log("→ Loading template:", TEMPLATE);
-  const templateBuf = await fs.readFile(TEMPLATE);
-  const templateBytes = templateBuf.buffer.slice(
-    templateBuf.byteOffset,
-    templateBuf.byteOffset + templateBuf.byteLength,
-  ) as ArrayBuffer;
+  const templateBytes = (await readBytes(TEMPLATE))!;
+  const stampBytes = await readBytes(STAMP);
+  const signatureBytes = await readBytes(SIGNATURE);
+  console.log(`→ Stamp:     ${stampBytes ? `${stampBytes.byteLength} bytes` : "MISSING"}`);
+  console.log(`→ Signature: ${signatureBytes ? `${signatureBytes.byteLength} bytes` : "MISSING"}`);
+
+  // Mock entitat: usa les dades públiques + valors de placeholder PII per testing
+  const entitat: EntitatConfig = {
+    ...ENTITAT_REUS_REFUGI_BASE,
+    telefon: "+34 600 000 000",
+    representantNom: "REPRESENTANT TEST",
+    representantDni: "00000000T",
+    representantTitol: "PRESIDENT",
+  };
 
   console.log("→ Calling fillAnexo2Pdf with mock record (Taoufiq)…");
-  const filledBytes = await fillAnexo2Pdf(templateBytes, MOCK_RECORD);
+  const filledBytes = await fillAnexo2Pdf(templateBytes, MOCK_RECORD, {
+    entitat,
+    entityStampPng: stampBytes,
+    representativeSignaturePng: signatureBytes,
+  });
 
   await fs.mkdir(OUT_DIR, { recursive: true });
   const pdfPath = path.join(OUT_DIR, "anexo2-test.pdf");

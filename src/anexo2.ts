@@ -1,115 +1,146 @@
 /**
- * Fill the Anexo II — Modelo de certificado de vulnerabilidad (EX-32) PDF.
+ * Fill the Anexo II — Modelo de certificado de vulnerabilidad PDF.
  *
  * Plantilla: assets/A2_certificado_vulnerabilidad.pdf
- *   - Ja ve amb dades d'entitat (Texto145-149), segell visual i Casilla 53
- *     (Tercer Sector) marcada. Aquestes les redibuixem manualment a partir
- *     del /V del template — Strategy A no manté l'AcroForm.
- *   - Camps a omplir del sol·licitant: Texto150-158.
- *   - Altres factors (text lliure): Texto159.
- *   - Data d'emissió (avui): Texto161.
- *   - Casillas 54-64: factors de vulnerabilitat (11 opcions, 1:1 amb multipleSelect).
- *   - Casilla 65: es marca automàticament si "Altres factors" té contingut.
- *   - Texto162-164 (DIR3): ja estan al /Fm1 / page content del template, no toquem.
+ *   Aquest és el PDF buit oficial del Ministeri (descarregat directament
+ *   d'inclusion.gob.es). NO té camps AcroForm — és un PDF estàtic generat
+ *   des d'un Word document. Pintem totes les dades a coordenades absolutes
+ *   definides a `anexo2-coords.ts` (extretes una vegada del PDF fillable
+ *   amb scripts/extract-anexo2-coords.ts).
  *
- * Renderitzat universal — Strategy A (ple flatten manual):
+ *   El template no conté cap dada específica de Reus Refugi (segell, NIF,
+ *   adreça, etc.). Tot ve injectat a runtime des d'`EntitatConfig` (mappings.ts
+ *   + env secrets) i dels binaris privats a src/private/*.png.
  *
- * Iteracions prèvies (vegeu commit history 2026-04-27):
- *   1. NeedAppearances=false → Chrome/Firefox/Drive no mostraven Casillas
- *      marcades.
- *   2. form.flatten() amb /P rebuild → flatten produeix XObjects malformats
- *      i regenera appearances en posicions errònies.
- *   3. Bypass flatten + manual draw + delete /AP + remove from /Annots →
- *      pdf-lib's save() amb updateFieldAppearances:true (per defecte) DUPLICA
- *      cada widget tocat: una còpia al /AcroForm /Fields amb la nostra /V i
- *      /F=2 (Hidden), una altra còpia al page /Annots amb /AP regenerat i
- *      /V buit. Adobe/Preview llegeixen /Fields i veuen /F=2 → no renderitzen
- *      el widget → només la nostra drawText es veu (correcte). Chrome/Firefox/
- *      Drive/Samsung llegeixen /Annots i renderitzen el /AP regenerat A SOBRE
- *      de la nostra drawText → text doble.
- *
- * Strategy A: ELIMINEM l'AcroForm completament del PDF resultant. El document
- * passa a ser purament estàtic (no editable), idèntic per a tots els visors:
- *
- *   1. Llegim els widget annotations DIRECTAMENT del /Annots de cada pàgina
- *      (bypass form.getFields() — pdf-lib clona els dicts per a la seva
- *      representació interna del form, fent que widget.dict no coincideixi
- *      amb el dict que viu al /Annots de la pàgina; per això havia fallat
- *      la resolució de pàgina al codi previ).
- *   2. Per a cada widget de tipus /Tx amb valor (record-provided OR /V del
- *      template), drawText al rect del widget a la pàgina correcta.
- *   3. Per a cada checkbox amb /AS=/Yes (record OR template prechecked),
- *      drawRectangle ple ~120% del rect (overpinta el frame buit que ve
- *      a /Fm1 page 1, o al page content stream a page 2).
- *   4. Eliminem /AcroForm del catalog i buidem /Annots de cada pàgina.
- *   5. save({ updateFieldAppearances: false }) — no hi ha res a regenerar.
- *
- * Trade-off: PDF no editable post-generació. Doble win:
- *   - Renderitza idèntic a tot arreu.
- *   - El destinatari no pot editar el certificat (signat).
+ * Camps que pintem:
+ *   §1 Entitat — Texto145 (nom), 146 (NIF), 147 (RECEX), 148 (domicili),
+ *      149 (telèfon/email), Casilla 52 o 53 segons E.tipusEntitat.
+ *   §2 Sol·licitant — Texto150 (nom), 151 (numDoc), 152 (data naixement),
+ *      153 (nacionalitat), 154 (domicili), 155 (telèfon), 156 (localitat),
+ *      157 (CP), 158 (província).
+ *   §3 Vulnerabilitat — Casillas 54-64 segons multipleSelect d'Airtable;
+ *      Texto159 + Casilla 65 si "altres factors" té contingut.
+ *   §4 Data — Texto161 amb la data d'avui (Europe/Madrid).
+ *   §5 Signatura — al rect "Signature" de page 2 dibuixem el segell de
+ *      l'entitat + la firma del representant (PNG opcionals; si no
+ *      existeixen, s'omet sense fallar).
  */
 
 import {
   PDFDocument,
-  PDFName,
-  PDFArray,
-  PDFDict,
-  PDFRef,
-  PDFString,
-  PDFHexString,
-  PDFNumber,
   StandardFonts,
   rgb,
 } from "pdf-lib";
 import {
+  ANEXO2_COORDS,
+  type AnexoIIWidgetCoord,
+} from "./anexo2-coords";
+import {
   ANEXO2_AIRTABLE_FIELDS as A,
   ANEXO2_PDF_FIELDS as P,
-  VULNERABILITAT_CASILLA,
+  ANEXO2_TIPUS_ENTITAT_CASILLA,
   ANEXO2_OTROS_CASILLA,
+  VULNERABILITAT_CASILLA,
+  type EntitatConfig,
 } from "./mappings";
 
 type AirtableRecordLike = { id: string; fields: Record<string, unknown> };
 
-interface WidgetInfo {
-  pageIndex: number;
-  name: string;
-  type: "text" | "check" | "other";
-  rect: { x: number; y: number; w: number; h: number };
-  templateValue: string; // /V on the template (text content, or /Yes / /Off for checkboxes)
+export interface FillAnexo2Options {
+  entitat: EntitatConfig;
+  /**
+   * PNG bytes del segell de l'entitat. A producció vénen empotrats al bundle
+   * del worker via `[[rules]] type="Data"` (vegeu wrangler.toml + index.ts).
+   * Si null/undefined, no es pinta segell — el certificat surt sense rúbrica.
+   */
+  entityStampPng?: ArrayBuffer | Uint8Array | null;
+  /**
+   * PNG bytes de la firma manuscrita del representant legal. Mateix mecanisme
+   * que entityStampPng. Si null/undefined, no es pinta firma.
+   */
+  representativeSignaturePng?: ArrayBuffer | Uint8Array | null;
 }
 
 const FONT_SIZE = 10;
+const SIGNATURE_KEY = "Signature";
 
 export async function fillAnexo2Pdf(
   templateBytes: ArrayBuffer,
   record: AirtableRecordLike,
+  options: FillAnexo2Options,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const pages = pdfDoc.getPages();
   const f = record.fields;
+  const E = options.entitat;
 
-  // Sobreescriptures del registre (Airtable). Si no hi ha valor, el text
-  // pre-omplert al template preval (per a Texto145-149 entitat, Texto158
-  // "Tarragona", etc.).
-  const textOverrides = new Map<string, string>();
-  const checkOverrides = new Set<string>();
+  // Les coordenades vénen del PDF original de Reus Refugi (que tenia widgets
+  // AcroForm — rectangles que cobrien la línia "_______" del template).
+  // Sense els rectangles, els nostres dibuixos col·loquen el text damunt de
+  // la línia, no per sobre. Pujar 3-4 punts compensa això i deixa el text
+  // assentat just per damunt de la línia underscored, com es renderitza un
+  // PDF governamental imprès.
+  const TEXT_BASELINE_OFFSET = 5;
 
-  const setText = (name: string, value: string): void => {
-    if (value) textOverrides.set(name, value);
+  const drawTextAt = (key: string, value: string): void => {
+    if (!value) return;
+    const c = ANEXO2_COORDS[key];
+    if (!c || c.type !== "text") return;
+    const page = pages[c.page];
+    if (!page) return;
+    page.drawText(value, {
+      x: c.x + 3,
+      y: c.y + TEXT_BASELINE_OFFSET,
+      size: FONT_SIZE,
+      font: helvetica,
+      color: rgb(0, 0, 0),
+      maxWidth: c.w - 6,
+    });
   };
 
-  // Secció 2 — Dades del sol·licitant
-  setText(P.nom, strOf(f[A.nom]));
-  setText(P.numDoc, strOf(f[A.numDoc]));
-  setText(P.dataNaixement, formatIsoDate(f[A.dataNaixement]));
-  setText(P.nacionalitat, strOf(f[A.nacionalitat]));
-  setText(P.domicili, strOf(f[A.domicili]));
-  setText(P.telefon, strOf(f[A.telefon]));
-  setText(P.localitat, strOf(f[A.localitat]));
-  setText(P.cp, strOf(f[A.cp]));
-  setText(P.provincia, strOf(f[A.provincia]));
+  const drawCheckAt = (key: string): void => {
+    const c = ANEXO2_COORDS[key];
+    if (!c || c.type !== "check") return;
+    const page = pages[c.page];
+    if (!page) return;
+    // El glyph "X" d'Helvetica Bold a una mida igual a l'alçada del box queda
+    // visualment ben centrat amb aquests offsets — calibrats pel PDF generat
+    // a producció. Amplada/alçada del rect dels checkboxes ronda 6.3 × 7.7 pt.
+    const size = Math.max(c.w, c.h) + 2;
+    page.drawText("X", {
+      x: c.x + c.w / 2 - size * 0.27,
+      y: c.y + c.h / 2 - size * 0.32,
+      size,
+      font: helveticaBold,
+      color: rgb(0, 0, 0),
+    });
+  };
 
-  // Secció 3 — Circumstàncies de vulnerabilitat
+  // ── §1 Entitat ─────────────────────────────────────────────────────────
+  drawTextAt(P.entitatNom, E.nom);
+  drawTextAt(P.entitatNif, E.nif);
+  drawTextAt(P.entitatRecex, E.recexNum);
+  drawTextAt(P.entitatDomicili, composeAddressOneLine(E));
+  drawTextAt(
+    P.entitatTelEmail,
+    [E.telefon, E.email].filter((s) => s && s.trim()).join(" / "),
+  );
+  drawCheckAt(ANEXO2_TIPUS_ENTITAT_CASILLA[E.tipusEntitat]);
+
+  // ── §2 Sol·licitant ────────────────────────────────────────────────────
+  drawTextAt(P.nom, strOf(f[A.nom]));
+  drawTextAt(P.numDoc, strOf(f[A.numDoc]));
+  drawTextAt(P.dataNaixement, formatIsoDate(f[A.dataNaixement]));
+  drawTextAt(P.nacionalitat, strOf(f[A.nacionalitat]));
+  drawTextAt(P.domicili, strOf(f[A.domicili]));
+  drawTextAt(P.telefon, strOf(f[A.telefon]));
+  drawTextAt(P.localitat, strOf(f[A.localitat]));
+  drawTextAt(P.cp, strOf(f[A.cp]));
+  drawTextAt(P.provincia, strOf(f[A.provincia]));
+
+  // ── §3 Circumstàncies de vulnerabilitat ────────────────────────────────
   const factors = f[A.factors];
   if (Array.isArray(factors)) {
     for (const raw of factors) {
@@ -126,137 +157,97 @@ export async function fillAnexo2Pdf(
             : "";
       if (!key) continue;
       const casilla = VULNERABILITAT_CASILLA[key];
-      if (casilla) checkOverrides.add(casilla);
+      if (casilla) drawCheckAt(casilla);
     }
   }
 
   const altresFactors = A.altresFactors ? strOf(f[A.altresFactors]).trim() : "";
   if (altresFactors) {
-    setText(P.altresFactors, altresFactors);
-    checkOverrides.add(ANEXO2_OTROS_CASILLA);
+    drawTextAt(P.altresFactors, altresFactors);
+    drawCheckAt(ANEXO2_OTROS_CASILLA);
   }
 
-  // Data
-  setText(P.dataAvui, todayInMadrid());
+  // ── §4 Data ────────────────────────────────────────────────────────────
+  drawTextAt(P.dataAvui, todayInMadrid());
 
-  // ── Recórrer els widget annotations directament des de /Annots ──────────
-  const widgets = collectWidgets(pdfDoc);
-  const pages = pdfDoc.getPages();
-
-  for (const w of widgets) {
-    const page = pages[w.pageIndex];
-    if (!page) continue;
-    if (w.type === "text") {
-      const value = textOverrides.get(w.name) ?? w.templateValue;
-      if (!value) continue;
-      page.drawText(value, {
-        x: w.rect.x + 3,
-        y: w.rect.y + (w.rect.h - FONT_SIZE) / 2 + 1,
-        size: FONT_SIZE,
-        font: helvetica,
-        color: rgb(0, 0, 0),
-        maxWidth: w.rect.w - 6,
-      });
-    } else if (w.type === "check") {
-      const checked =
-        checkOverrides.has(w.name) || w.templateValue === "Yes";
-      if (!checked) continue;
-      // Marca ~120% del rect — el frame buit ve dibuixat a /Fm1 (page 1)
-      // o al page content stream (page 2) i té fill blanc; sense
-      // l'expansió, el blanc tapa la nostra marca.
-      const padX = w.rect.w * 0.1;
-      const padY = w.rect.h * 0.1;
-      page.drawRectangle({
-        x: w.rect.x - padX,
-        y: w.rect.y - padY,
-        width: w.rect.w + padX * 2,
-        height: w.rect.h + padY * 2,
-        color: rgb(0, 0, 0),
-      });
-    }
+  // ── §5 Signatura ───────────────────────────────────────────────────────
+  // El widget "Signature" del PDF original era un signature field; aquí no
+  // tenim AcroForm però utilitzem les seves coordenades com a centre de la
+  // zona on s'estampa el segell + la firma del representant.
+  const sigBox = ANEXO2_COORDS[SIGNATURE_KEY];
+  if (sigBox) {
+    await drawStampAndSignature(
+      pdfDoc,
+      pages[sigBox.page],
+      sigBox,
+      options.entityStampPng,
+      options.representativeSignaturePng,
+    );
   }
 
-  // ── Eliminar AcroForm + tots els widget annotations ─────────────────────
-  // Fa el PDF estàtic i no editable. Cap visor pot rederitzar /AP que ja no
-  // existeix; només el contingut estàtic de la pàgina + les nostres draws.
-  pdfDoc.catalog.delete(PDFName.of("AcroForm"));
-  for (const page of pages) {
-    page.node.set(PDFName.of("Annots"), pdfDoc.context.obj([]));
-  }
-
-  return await pdfDoc.save({ updateFieldAppearances: false });
+  return await pdfDoc.save();
 }
 
-/**
- * Recorre el /Annots de cada pàgina i extreu els widget annotations en
- * brut (sense passar per la representació de form de pdf-lib, que clona
- * dicts i ens trenca la correspondència widget↔pàgina).
- */
-function collectWidgets(pdfDoc: PDFDocument): WidgetInfo[] {
-  const out: WidgetInfo[] = [];
-  const pages = pdfDoc.getPages();
+// ─────────────────────────────────────────────────────────────────────────────
+//  Sub-helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
-  for (let i = 0; i < pages.length; i++) {
-    const annots = pages[i].node.lookup(PDFName.of("Annots"));
-    if (!(annots instanceof PDFArray)) continue;
-    for (let k = 0; k < annots.size(); k++) {
-      const item = annots.get(k);
-      const dict = item instanceof PDFRef ? pdfDoc.context.lookup(item) : item;
-      if (!(dict instanceof PDFDict)) continue;
-      const subtype = dict.lookup(PDFName.of("Subtype"));
-      if (!(subtype instanceof PDFName) || subtype.asString() !== "/Widget") {
-        continue;
-      }
-
-      const name = decodePdfString(dict.lookup(PDFName.of("T")));
-      if (!name) continue;
-
-      const rectArr = dict.lookup(PDFName.of("Rect"));
-      if (!(rectArr instanceof PDFArray) || rectArr.size() < 4) continue;
-      const r0 = numFrom(rectArr.get(0));
-      const r1 = numFrom(rectArr.get(1));
-      const r2 = numFrom(rectArr.get(2));
-      const r3 = numFrom(rectArr.get(3));
-      if (r0 === null || r1 === null || r2 === null || r3 === null) continue;
-      const rect = {
-        x: Math.min(r0, r2),
-        y: Math.min(r1, r3),
-        w: Math.abs(r2 - r0),
-        h: Math.abs(r3 - r1),
-      };
-
-      const ft = dict.lookup(PDFName.of("FT"));
-      const ftStr = ft instanceof PDFName ? ft.asString() : "";
-      let type: WidgetInfo["type"] = "other";
-      let templateValue = "";
-      const vEntry = dict.lookup(PDFName.of("V"));
-      if (ftStr === "/Tx") {
-        type = "text";
-        templateValue = decodePdfString(vEntry);
-      } else if (ftStr === "/Btn") {
-        type = "check";
-        if (vEntry instanceof PDFName) {
-          templateValue = vEntry.asString() === "/Yes" ? "Yes" : "Off";
-        } else {
-          templateValue = "Off";
-        }
-      }
-
-      out.push({ pageIndex: i, name, type, rect, templateValue });
-    }
+async function drawStampAndSignature(
+  pdfDoc: PDFDocument,
+  page: ReturnType<PDFDocument["getPages"]>[number],
+  box: AnexoIIWidgetCoord,
+  stampBytes: ArrayBuffer | Uint8Array | null | undefined,
+  signatureBytes: ArrayBuffer | Uint8Array | null | undefined,
+): Promise<void> {
+  // Stamp: dibuixat a l'esquerra del box, ample ~150pt (proporcional). El
+  // segell visual normalment ocupa més espai del que la zona Signature té,
+  // així que hi posem un offset negatiu en X i el centrem verticalment al
+  // box.
+  if (stampBytes && byteLength(stampBytes) > 0) {
+    const stamp = await pdfDoc.embedPng(toUint8(stampBytes));
+    const stampW = 150;
+    const stampH = stampW * (stamp.height / stamp.width);
+    page.drawImage(stamp, {
+      x: box.x - 80,
+      y: box.y + (box.h - stampH) / 2,
+      width: stampW,
+      height: stampH,
+    });
   }
-  return out;
+
+  // Signature: dibuixada a sobre / al costat dret del segell, dins el box
+  // amb una mica de bleed.
+  if (signatureBytes && byteLength(signatureBytes) > 0) {
+    const sig = await pdfDoc.embedPng(toUint8(signatureBytes));
+    const sigW = box.w + 20;
+    const sigH = sigW * (sig.height / sig.width);
+    page.drawImage(sig, {
+      x: box.x - 5,
+      y: box.y + (box.h - sigH) / 2,
+      width: sigW,
+      height: sigH,
+    });
+  }
 }
 
-function decodePdfString(v: unknown): string {
-  if (v instanceof PDFString) return v.decodeText();
-  if (v instanceof PDFHexString) return v.decodeText();
-  return "";
+function byteLength(b: ArrayBuffer | Uint8Array): number {
+  return b instanceof Uint8Array ? b.byteLength : b.byteLength;
 }
 
-function numFrom(v: unknown): number | null {
-  if (v instanceof PDFNumber) return v.asNumber();
-  return null;
+function toUint8(b: ArrayBuffer | Uint8Array): Uint8Array {
+  return b instanceof Uint8Array ? b : new Uint8Array(b);
+}
+
+function composeAddressOneLine(E: EntitatConfig): string {
+  return [
+    `${E.domiciliCarrer} ${E.domiciliNum}`.trim(),
+    E.domiciliPis,
+    E.localitat,
+    E.cp,
+    E.provincia,
+  ]
+    .filter((s) => s && s.trim().length > 0)
+    .join(", ");
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

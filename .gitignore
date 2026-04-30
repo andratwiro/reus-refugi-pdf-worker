@@ -3,3 +3,11 @@ node_modules/
 .wrangler/
 .DS_Store
 mock/test/output/
+mock/anexo2-test-out/
+
+# Entity-specific binaries (segell + firma del representant). Cada ONG en
+# proporciona els seus a src/private/ abans de fer wrangler deploy. NO han
+# d'estar mai al repo públic — qualsevol que els obtingués els podria
+# estampar a documents falsos.
+src/private/*.png
+src/private/*.jpg

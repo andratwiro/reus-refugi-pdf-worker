@@ -54,10 +54,12 @@ d'inserció social municipal — abans calia redactar-lo a mà — i recull els
 factors de vulnerabilitat (Casillas 54-64) que el voluntari ja tenia marcats
 a Airtable. **Funciona, és estable, i s'usa cada dia.**
 
-Detall tècnic: el PDF es lliura *flatten* (no editable) i renderitza idèntic
-a tot arreu (Adobe, Chrome, Drive, Samsung Notes…). Vegeu
-[`src/anexo2.ts`](src/anexo2.ts) per la lògica de Strategy A — flatten manual,
-sense AcroForm.
+Detall tècnic: el template és el PDF buit oficial del Ministeri (descarregat
+d'inclusion.gob.es) sense AcroForm; pintem totes les dades — incloent el
+segell i la firma del representant — a coordenades absolutes a runtime.
+El PDF lliurat no és editable i renderitza idèntic a tot arreu (Adobe, Chrome,
+Drive, Samsung Notes…). Vegeu [`src/anexo2.ts`](src/anexo2.ts) i
+[`src/anexo2-coords.ts`](src/anexo2-coords.ts).
 
 ### 🤖 Omplir Mercurio automàticament — **beta**
 
@@ -187,7 +189,7 @@ npx wrangler secret put PRESENTADOR_MOBIL
 npx wrangler secret put PRESENTADOR_EMAIL
 
 # 5. Defineix les dades PII de l'entitat (telèfon + representant legal)
-#    — necessari per omplir les seccions 2/3 dels EX-31/EX-32 i la capçalera de l'Annex II
+#    — necessari per omplir les seccions 2/3 dels EX-31/EX-32
 npx wrangler secret put ENTITAT_TELEFON      # mòbil de contacte de l'entitat
 npx wrangler secret put REPRESENTANT_NOM     # "NOM COGNOM1 COGNOM2" majúscules
 npx wrangler secret put REPRESENTANT_DNI     # DNI/NIE del representant legal
@@ -200,7 +202,15 @@ npx wrangler secret put GAS_SHARED_SECRET
 # 7. Edita wrangler.toml amb els IDs de la teva base d'Airtable
 # (AIRTABLE_BASE_ID, CASOS_TABLE_ID, INFORMES_VULN_TABLE_ID, etc.)
 
-# 8. Push a main → Cloudflare Workers Builds desplega automàticament.
+# 8. Edita ENTITAT_REUS_REFUGI_BASE a src/mappings.ts amb les dades
+# públiques de la teva entitat (nom, NIF, adreça, RECEX, tipusEntitat).
+
+# 9. Posa segell + firma del representant a src/private/
+#    (gitignored — no han d'estar mai al repo públic; vegeu src/private/README.md)
+cp /ruta/al/teu/segell.png    src/private/entity-stamp.png
+cp /ruta/a/la/teva/firma.png  src/private/representative-signature.png
+
+# 10. Push a main → Cloudflare Workers Builds desplega automàticament.
 git push origin main
 ```
 
@@ -233,22 +243,28 @@ el script automàticament.
 src/
   index.ts             ← router principal (totes les rutes HTTP)
   airtable.ts          ← client Airtable (read, listRecords, uploadAttachment)
-  mappings.ts          ← IDs de camps Airtable per a la taula Casos
+  mappings.ts          ← IDs de camps Airtable + dades públiques d'entitat
   fillPdf.ts           ← omplir dossier EX-31/EX-32 (decision tree per Via legal)
-  anexo2.ts            ← omplir Informe de Vulnerabilitat (Strategy A flatten)
+  anexo2.ts            ← omplir Informe de Vulnerabilitat (paint a coords absolutes)
+  anexo2-coords.ts     ← coordenades hardcoded dels camps de l'Annex II
   mercurio/
     mapping.ts         ← Airtable case → 144 camps Mercurio
     catalogs.ts        ← codis DOM (sexe, província, parentesco…)
     userscriptCode.ts  ← template del userscript Tampermonkey
+  private/             ← gitignored — segell + firma de l'entitat (vegeu README intern)
 
-assets/
+assets/                ← públicament accessible via env.ASSETS.fetch()
   EX31_oficial.pdf, EX31_seccion5.pdf
   EX32_oficial.pdf, EX32_seccion5.pdf
-  A2_certificado_vulnerabilidad.pdf
+  A2_certificado_vulnerabilidad.pdf   ← versió oficial buida del Ministeri
+
+scripts/
+  extract-anexo2-coords.ts ← regenera anexo2-coords.ts si canvies de template
+  optimize-airtable-pdfs.ts
 
 mock/                  ← fixtures de casos reals + sintètics per a tests
 airtable-automation.js ← codi per enganxar dins d'Airtable (botó → Worker)
-wrangler.toml          ← config del Worker (vars públiques, assets binding)
+wrangler.toml          ← config del Worker (vars públiques, assets binding, data rules)
 ```
 
 ---
@@ -273,12 +289,28 @@ vistes i automatitzacions des de zero. Després només cal:
 - El **presentador** (representant acreditat que signa les sol·licituds via
   Mercurio) es configura via els 5 secrets `PRESENTADOR_*`. Cada entitat ha de
   fer-ho amb les seves pròpies dades — no hi ha valors per defecte al codi.
-- El **representant legal** de l'entitat (qui signa els PDFs EX-31/EX-32 i
-  apareix a la capçalera de l'Annex II) es configura via `ENTITAT_TELEFON` i
-  els 3 secrets `REPRESENTANT_*`. Cap valor PII queda al codi.
-- Les dades públiques de l'entitat (nom, NIF, domicili, email del registre
-  d'associacions) viuen a `ENTITAT_REUS_REFUGI_BASE` a `src/mappings.ts` —
-  cada fork ha d'editar aquesta constant amb les dades de la seva entitat.
+- El **representant legal** de l'entitat (qui signa els PDFs EX-31/EX-32) es
+  configura via `ENTITAT_TELEFON` i els 3 secrets `REPRESENTANT_*`. Cap valor
+  PII queda al codi.
+- Les **dades públiques de l'entitat** (nom, NIF, domicili, email del registre
+  d'associacions, RECEX, `tipusEntitat`) viuen a `ENTITAT_REUS_REFUGI_BASE` a
+  [`src/mappings.ts`](src/mappings.ts) — cada fork ha d'editar aquesta constant
+  amb les dades de la seva entitat. Posa `tipusEntitat: "admin_publica"` si
+  ets una administració pública competent en assistència social, o
+  `"tercer_sector"` si ets una entitat del Tercer Sector inscrita al RECEX.
+- El **segell de l'entitat** i la **firma manuscrita del representant** que
+  apareixen a la zona de signatura de l'Annex II viuen a `src/private/*.png`.
+  Aquest directori està **gitignored** i els fitxers s'empotren al bundle del
+  worker via `[[rules]] type="Data"` a `wrangler.toml` (no s'exposen via la
+  URL del worker). Cada entitat ha de proporcionar els seus propis PNGs
+  abans del primer `wrangler deploy`. Vegeu
+  [`src/private/README.md`](src/private/README.md) per a especificacions.
+
+  > 🔒 **Per què gitignored?** Si el segell estigués al repo públic, qualsevol
+  > el podria descarregar i estampar a documents falsos suplantant l'entitat.
+  > Per això els binaris no poden viure ni a `assets/` (servit públicament
+  > via el binding ASSETS) ni al git history.
+
 - `wrangler.toml` apunta a la base d'Airtable Venus de Reus Refugi
   (`appWuXncpGWaFTR4M`). Cada entitat té la seva pròpia base; cal canviar tots
   els IDs.

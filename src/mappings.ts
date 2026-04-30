@@ -65,6 +65,10 @@ export const CASOS = {
  * Public entity data from the Generalitat de Catalunya's association registry
  * (form J0225, 64431 al Registre d'Associacions). PII fields (telefon,
  * representantNom/Dni/Titol) live in env secrets — see buildEntitat() in index.ts.
+ *
+ * For other NGOs forking this worker: edit these constants to your own
+ * registry data. Tots els camps són dades públiques del registre d'associacions
+ * o equivalent — no PII.
  */
 export const ENTITAT_REUS_REFUGI_BASE = {
   nom: "ASSOCIACIÓ REUS REFUGI",
@@ -79,8 +83,14 @@ export const ENTITAT_REUS_REFUGI_BASE = {
 
   email: "info@reusrefugi.cat",
 
-  recexNum: "",
+  recexNum: "26e00030037126",
+
+  // "tercer_sector" → marca Casilla 53 a l'Annex II.
+  // "admin_publica" → marca Casilla 52.
+  tipusEntitat: "tercer_sector" as TipusEntitat,
 } as const;
+
+export type TipusEntitat = "admin_publica" | "tercer_sector";
 
 export interface EntitatConfig {
   nom: string;
@@ -93,6 +103,7 @@ export interface EntitatConfig {
   provincia: string;
   email: string;
   recexNum: string;
+  tipusEntitat: TipusEntitat;
   telefon: string;
   representantNom: string;
   representantDni: string;
@@ -235,10 +246,31 @@ export const ANEXO2_AIRTABLE_FIELDS = {
 } as const;
 
 /**
- * Noms dels widgets del PDF Anexo II. NO toquem Texto145-149 (entitat, ja
- * omplert), Casilla 52/53 (Tercer Sector, ja marcat), ni Texto162-164 (DIR3).
+ * Noms dels widgets de l'Annex II. Els noms són purament identificadors
+ * lògics: el PDF que distribuïm com a template (`assets/A2_certificado_vulnerabilidad.pdf`,
+ * descarregat directament d'inclusion.gob.es) NO té AcroForm, i pintem tot
+ * a coordenades absolutes definides a `anexo2-coords.ts`. Mantenim els noms
+ * "TextoNNN" / "Casilla de verificación NN" perquè coincideixen amb el PDF
+ * fillable original que l'oficial va publicar i fan d'ID estable.
+ *
+ *   Texto145-149 = dades de l'entitat (s'omplen via FillOptions.entitat)
+ *   Texto150-158 = dades del sol·licitant
+ *   Texto159     = "Otros (especificar)"
+ *   Texto161     = data emissió
+ *   Texto162-164 = DIR3 (codi DIR3 òrgan tramitador) — opcional, vegeu
+ *                  ENTITAT_DIR3_* a env secrets si s'omplen
+ *   Casilla 52/53 = tipus entitat (Admin pública / Tercer Sector)
+ *   Casilla 54-64 = factors de vulnerabilitat
+ *   Casilla 65    = "Otros factores" toggle
  */
 export const ANEXO2_PDF_FIELDS = {
+  // Entitat
+  entitatNom: "Texto145",
+  entitatNif: "Texto146",
+  entitatRecex: "Texto147",
+  entitatDomicili: "Texto148",
+  entitatTelEmail: "Texto149",
+  // Sol·licitant
   nom: "Texto150",
   numDoc: "Texto151",
   dataNaixement: "Texto152",
@@ -251,6 +283,11 @@ export const ANEXO2_PDF_FIELDS = {
   altresFactors: "Texto159",
   dataAvui: "Texto161",
 } as const;
+
+export const ANEXO2_TIPUS_ENTITAT_CASILLA: Record<TipusEntitat, string> = {
+  admin_publica: "Casilla de verificación52",
+  tercer_sector: "Casilla de verificación53",
+};
 
 /**
  * Mapa entre OPCIÓ (id o nom) del multipleSelect i el widget PDF.

@@ -11,6 +11,12 @@
 import { AirtableClient, AirtableRecord } from "./airtable";
 import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
+
+// Binaris privats empotrats al bundle del worker via `[[rules]] type="Data"`
+// (vegeu wrangler.toml). Gitignored — cada ONG hi posa els seus a
+// src/private/ abans de fer wrangler deploy. Vegeu src/private/README.md.
+import entityStampPng from "./private/entity-stamp.png";
+import representativeSignaturePng from "./private/representative-signature.png";
 import { CASOS, ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
@@ -255,6 +261,15 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
   const generatedAtField = env.INFORMES_VULN_GENERATED_AT_FIELD;
   const airtable = new AirtableClient(env.AIRTABLE_TOKEN, env.AIRTABLE_BASE_ID);
 
+  const entitat = buildEntitat(env);
+  if (!entitat) {
+    return corsJson(
+      { error: "ENTITAT_TELEFON / REPRESENTANT_* secrets not configured. See README → Setup." },
+      request,
+      500,
+    );
+  }
+
   try {
     // Read the record BY FIELD ID (default) — noms de camp poden canviar.
     const record = await airtable.getRecord(tableId, body.recordId);
@@ -267,7 +282,11 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
     }
     const templateBytes = await templateResp.arrayBuffer();
 
-    const pdfBytes = await fillAnexo2Pdf(templateBytes, record);
+    const pdfBytes = await fillAnexo2Pdf(templateBytes, record, {
+      entitat,
+      entityStampPng,
+      representativeSignaturePng,
+    });
     const filename = anexo2Filename(record);
 
     // One combined PATCH: clear attachment field + set timestamp. Saves an

@@ -8,9 +8,26 @@ compatibility_flags = ["nodejs_compat"]
 #   - EX31_oficial.pdf, EX31_seccion5.pdf
 #   - EX32_oficial.pdf, EX32_seccion5.pdf
 #   - A2_certificado_vulnerabilidad.pdf      ← nou (Anexo II express)
+#
+# IMPORTANT: tot el que viu a ./assets/ s'exposa públicament a la URL del
+# worker (https://reus-refugi-pdf-worker.workers.dev/<filename>). NO posis
+# aquí binaris que no siguin segurs de ser públics — els PDFs templates són
+# tots oficials del Govern espanyol, descarregables lliurement.
 [assets]
 directory = "./assets"
 binding = "ASSETS"
+
+# Private binaries — el segell de l'entitat i la firma del representant viuen
+# a src/private/*.png i s'empotren al bundle del worker com a ArrayBuffer
+# (importats via `import stamp from "./private/entity-stamp.png"`). NO els
+# servim via el binding ASSETS perquè qualsevol amb la URL podria descarregar-
+# los i estampar-los a documents falsos. Els fitxers reals estan gitignored
+# (vegeu .gitignore i src/private/README.md). Cada ONG en proporciona els seus
+# abans de fer `npx wrangler deploy`.
+[[rules]]
+type = "Data"
+globs = ["src/private/*.png"]
+fallthrough = true
 
 # Logs & observability
 [observability]

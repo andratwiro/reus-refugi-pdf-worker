@@ -125,6 +125,42 @@ function mapTipoVia(s: string | undefined): string {
   return extractCode(s);
 }
 
+/**
+ * Normalitza Pis al catàleg Mercurio (extPiso).
+ *
+ * Mercurio NO accepta '1', '2'... — el catàleg usa codis prefixats:
+ *   P01..P40 (pisos numerals), A01..A10 (àtics), S01..S05 (sòtans),
+ *   ALT, ENT, PBJ, PBE, PBI, PRL, SSO, SOT, ' ' (NINGUNO).
+ *
+ * Acceptem entrada flexible del voluntari:
+ *   '2' / '02' / '2º' / '2ª' / 'P02' → 'P02'
+ *   'BJ' / 'PBJ' → 'PBJ'
+ *   'AT' / 'AT01' → 'A01'
+ *   'ENT' / 'ALT' / 'PRL' (pass-through si ja és vàlid)
+ */
+function normalitzaPis(s: string | undefined): string {
+  const v = String(s ?? '').trim();
+  if (!v) return '';
+  // Numeral pur (1, 2, ..., 40) o amb 0 al davant ('05') o ordinal ('2º', '2ª')
+  const numMatch = v.match(/^0*([1-9]\d?)[ºª°]?$/);
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10);
+    if (n >= 1 && n <= 40) return 'P' + String(n).padStart(2, '0');
+  }
+  // Ja és el codi del catàleg (P01, A01, S01, ALT, ENT, PBJ, PRL, etc.)
+  if (/^[A-Z]{1,3}\d{0,2}$/.test(v.toUpperCase())) return v.toUpperCase();
+  // Sinònims comuns
+  const upper = v.toUpperCase();
+  const aliases: Record<string, string> = {
+    'BJ': 'PBJ', 'BAJO': 'PBJ', 'BAJOS': 'PBJ',
+    'AT': 'ALT', 'ATICO': 'ALT',
+    'PR': 'PRL', 'PRINCIPAL': 'PRL',
+    'EN': 'ENT', 'ENTRESUELO': 'ENT',
+    'SS': 'SSO', 'SO': 'SOT', 'SOTANO': 'SOT',
+  };
+  return aliases[upper] ?? v; // si no reconeixem, deixem al userscript que reporti invalid_option
+}
+
 /** ISO date "1986-08-15" → "15/08/1986" */
 function isoToEs(iso: string | undefined): string {
   if (!iso) return '';
@@ -320,7 +356,7 @@ export function airtableToMercurio(
     extTipoVia: mapTipoVia(fStr(rec, 'Tipus via')),
     extDomicilio: fStr(rec, 'Nom carrer'),
     extNumero: fStr(rec, 'Número') || (fStr(rec, 'Nom carrer') ? 'SN' : ''),
-    extPiso: fStr(rec, 'Pis'),
+    extPiso: normalitzaPis(fStr(rec, 'Pis')),
     extLetra: fStr(rec, 'Lletra'),
     extEscalera: fStr(rec, 'Escala'),
     extBloque: fStr(rec, 'Bloc'),
@@ -422,7 +458,7 @@ function buildReagrupante(refRec: AirtableCase): Record<string, string> {
     reaTipoViaReagrupante: mapTipoVia(f('Tipus via')),
     reaDomicilioReagrupante: f('Nom carrer'),
     reaNumeroReagrupante: f('Número'),
-    reaPisoReagrupante: f('Pis'),
+    reaPisoReagrupante: normalitzaPis(String(f('Pis'))),
     reaLetraReagrupante: f('Lletra'),
     reaEscaleraReagrupante: f('Escala'),
     reaBloqueReagrupante: f('Bloc'),

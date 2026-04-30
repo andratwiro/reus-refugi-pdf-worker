@@ -480,6 +480,17 @@ async function handleMercurioCases(request: Request, env: Env): Promise<Response
     const haystack = `${nom} ${cog1} ${cog2} ${idCas} ${passaport}`.toLowerCase();
     if (q && !haystack.includes(q)) continue;
 
+    // Filtre estat: amaguem casos amb estat 'Presentada' del llistat —
+    // ja són tancats i no cal tornar-los a tocar des de Mercurio. El
+    // voluntari els pot tornar a veure si cal canviant Estat manualment.
+    const estatRaw = f["Estat"];
+    const estatName = typeof estatRaw === "string"
+      ? estatRaw
+      : (estatRaw && typeof estatRaw === "object" && "name" in estatRaw)
+        ? String((estatRaw as { name: string }).name)
+        : "";
+    if (/presentada/i.test(estatName)) continue;
+
     const viaLegalRaw = f["Via legal"];
     const viaLegal = typeof viaLegalRaw === "string"
       ? viaLegalRaw

@@ -132,6 +132,48 @@ function isoToEs(iso: string | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
+/** Typos coneguts de domini → domini correcte. Només alta confiança:
+ *  proveïdors massius on un humà no podria tenir legítimament aquest domini. */
+const EMAIL_DOMAIN_FIXES: Record<string, string> = {
+  // gmail.com
+  'gmai.com': 'gmail.com', 'gmial.com': 'gmail.com', 'gmaill.com': 'gmail.com',
+  'gmal.com': 'gmail.com', 'gmali.com': 'gmail.com', 'gmaul.com': 'gmail.com',
+  'gmsil.com': 'gmail.com', 'gnail.com': 'gmail.com', 'gamil.com': 'gmail.com',
+  'gmail.con': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmail.co': 'gmail.com',
+  'gmail.cim': 'gmail.com', 'gmail.cpm': 'gmail.com', 'gmail.om': 'gmail.com',
+  // hotmail.com / hotmail.es
+  'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmal.com': 'hotmail.com',
+  'hotmaill.com': 'hotmail.com', 'hotnail.com': 'hotmail.com', 'hottmail.com': 'hotmail.com',
+  'hotmail.con': 'hotmail.com', 'hotmail.cm': 'hotmail.com', 'hotmail.co': 'hotmail.com',
+  'hotmial.es': 'hotmail.es', 'hotmai.es': 'hotmail.es', 'hotmal.es': 'hotmail.es',
+  // yahoo.com / yahoo.es
+  'yaho.com': 'yahoo.com', 'yahho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com',
+  'yhoo.com': 'yahoo.com', 'yahoo.con': 'yahoo.com',
+  'yaho.es': 'yahoo.es', 'yahooo.es': 'yahoo.es',
+  // outlook.com / outlook.es
+  'outlok.com': 'outlook.com', 'outloook.com': 'outlook.com', 'outloo.com': 'outlook.com',
+  'outlook.con': 'outlook.com', 'outlook.cm': 'outlook.com',
+  'outlok.es': 'outlook.es',
+  // icloud.com
+  'iclod.com': 'icloud.com', 'iclould.com': 'icloud.com', 'icloud.con': 'icloud.com',
+  // live.com
+  'live.con': 'live.com', 'livee.com': 'live.com',
+};
+
+/** Normalitza email: trim, lowercase, corregeix typos coneguts del domini.
+ *  La part local (abans de @) NO es toca — qualsevol "correcció" seria endevinar.
+ *  Si no hi ha @ o no hi ha domini, retorna el valor trimat/lowercase tal qual. */
+function normalizeEmail(raw: string): string {
+  const s = raw.trim().toLowerCase();
+  if (!s) return '';
+  const at = s.lastIndexOf('@');
+  if (at <= 0 || at === s.length - 1) return s;
+  const local = s.slice(0, at);
+  const domain = s.slice(at + 1);
+  const fixed = EMAIL_DOMAIN_FIXES[domain] ?? domain;
+  return `${local}@${fixed}`;
+}
+
 /** Get field, preferint la versió sufixada "X (Mercurio)" si existeix.
  *  Cas Nacionalitat / País naixement / Tipus via: Airtable té DOS camps —
  *  l'antic (text "COLOMBIA") i el nou (codi "COLOMBIA (212)"). Volem el nou.
@@ -141,10 +183,13 @@ function f(rec: AirtableCase, name: string): any {
 }
 
 /** First non-empty Airtable string value: nacionalitat or other singleSelect.
- *  Handles "MARRUECOS (348)" pattern. */
+ *  Handles "MARRUECOS (348)" pattern.
+ *  Trim agressiu — espais accidentals al final (p.ex. "2 " a Pis) trenquen
+ *  el `<select>.options.find(o => o.value === value)` del userscript. Vist
+ *  amb cas RR-014 Miryan: Pis="2 " → invalid_option a Mercurio. */
 function fStr(rec: AirtableCase, name: string): string {
   const v = f(rec, name);
-  return typeof v === 'string' ? v : '';
+  return typeof v === 'string' ? v.trim() : '';
 }
 
 /**
@@ -279,11 +324,16 @@ export function airtableToMercurio(
     extHectometro: fStr(rec, 'Hm'),
     extCodigoProvincia: '43',
     extCodigoMunicipio: extractCode(fStr(rec, 'Municipi Mercurio')),
-    extCodigoLocalidad: fStr(rec, 'Localitat Mercurio') || '000000',
+    // Localitat Mercurio: el catàleg usa codis de 6 dígits ('000000', '000600'…).
+    // Si el voluntari escriu text ('REUS') en lloc del codi, fallback al codi
+    // central del municipi ('000000') per evitar invalid_option a Mercurio.
+    extCodigoLocalidad: /^\d{6}$/.test(fStr(rec, 'Localitat Mercurio'))
+      ? fStr(rec, 'Localitat Mercurio')
+      : '000000',
     extCodigoPostal: fStr(rec, 'CP'),
     extTelefono: '',
     extTelefonoMovil: fStr(rec, 'Telèfon').replace(/\D/g, ''),
-    extEmail: fStr(rec, 'Email'),
+    extEmail: normalizeEmail(fStr(rec, 'Email')),
     extNombreRepresentante: '',
     extTipodocumentoRepresentante: 'NF',
     extNieRepresentante: '',

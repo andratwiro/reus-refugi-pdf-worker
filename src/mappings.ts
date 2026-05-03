@@ -296,34 +296,48 @@ export const ANEXO2_TIPUS_ENTITAT_CASILLA: Record<TipusEntitat, string> = {
  * retorna només el name i no l'ID.
  */
 export const VULNERABILITAT_CASILLA: Record<string, string> = {
-  // Per option ID (preferit, estable)
+  // Per option ID (preferit, estable). En el seu moment Rob va renomenar
+  // alguns valors a la UI i Airtable va crear OPCIONS NOVES amb ID nou en
+  // comptes de mutar les antigues — així que tenim duplicats per algunes
+  // entrades. Mapem els dos IDs al mateix Casilla. Si es netegen els
+  // duplicats a Airtable, els blocs "(antiga)" / "(nou ID)" són eliminables.
   "selQPZ0N6xMPRXuWo": "Casilla de verificación54", // Aïllament social
+  "seleSh6L5An7r3Alp": "Casilla de verificación54", // Aïllament social (nou ID)
   "selsSMM7GRLThoHmd": "Casilla de verificación55", // Sensellarisme
-  "selcVnJ4wTgGkjjPr": "Casilla de verificación56", // Víctima discriminació
-  "selWderpMATkL57L9": "Casilla de verificación57", // Manca ingressos
+  "selcVnJ4wTgGkjjPr": "Casilla de verificación56", // Discriminació o exclusió
+  "seltT2ijq8zDG2VUC": "Casilla de verificación56", // Discriminació o exclusió (nou ID)
+  "selWderpMATkL57L9": "Casilla de verificación57", // Manca d'ingressos
   "selBQjJpb0m3iK8eH": "Casilla de verificación58", // Pobresa
-  "selLHNuj87FGMBesr": "Casilla de verificación59", // Dificultat ocupació
+  "selDdFL5MFzyI70TO": "Casilla de verificación58", // Pobresa (nou ID)
+  "selLHNuj87FGMBesr": "Casilla de verificación59", // Dificultat per trobar feina
   "selkPqy30qXFzbHxL": "Casilla de verificación60", // Persones a càrrec
-  "selkHCSgPEY7fq5gk": "Casilla de verificación61", // Unitat familiar
-  "selkFaLTMEHoEyeYR": "Casilla de verificación62", // Monoparentalitat
+  "selkHCSgPEY7fq5gk": "Casilla de verificación61", // Família en situació vulnerable
+  "selkFaLTMEHoEyeYR": "Casilla de verificación62", // Família monoparental
   "selpfLHy7mG04qH1p": "Casilla de verificación63", // Riscos psicosocials
-  "selFf62XJhsvKkehb": "Casilla de verificación64", // Exposició explotació
+  "selwgiZxu2FMqsdXT": "Casilla de verificación63", // Riscos psicosocials (nou ID)
+  "selFf62XJhsvKkehb": "Casilla de verificación64", // Explotació o abús
+  "sel5ozBQ3zPAyTZEz": "Casilla de verificación64", // Explotació o abús (nou ID)
 
-  // Per nom (fallback). Airtable strippeja els \n dels noms d'opció i els
-  // converteix a espai, així que el separador entre català i àrab és un
-  // espai literal — no un newline — a la resposta de l'API REST. Si Rob
-  // torna a renombrar, els IDs sel... de sobre fan de xarxa de seguretat.
+  // Per nom (fallback) — l'API REST retorna multipleSelects com a array de
+  // strings (només noms), no objectes amb id, així que el match efectiu és
+  // per nom. Doble entrada per als duplicats: variant amb espai (opcions
+  // velles) i variant amb \n real (opcions noves creades després del rename).
   "Aïllament social عزلة اجتماعية": "Casilla de verificación54",
+  "Aïllament social\nعزلة اجتماعية": "Casilla de verificación54",
   "Sensellarisme o habitatge precari بدون مسكن أو سكن غير لائق": "Casilla de verificación55",
   "Discriminació o exclusió تمييز أو إقصاء": "Casilla de verificación56",
+  "Discriminació o exclusió\nتمييز أو إقصاء": "Casilla de verificación56",
   "Manca d'ingressos لا يوجد دخل كافٍ": "Casilla de verificación57",
   "Pobresa o risc d'exclusió econòmica فقر أو ضائقة اقتصادية": "Casilla de verificación58",
+  "Pobresa o risc d'exclusió econòmica\nفقر أو ضائقة اقتصادية": "Casilla de verificación58",
   "Dificultat per trobar feina صعوبة في إيجاد عمل": "Casilla de verificación59",
   "Persones a càrrec (menors, gent gran) أشخاص تحت رعايتي (أطفال، مسنون)": "Casilla de verificación60",
   "Família en situació vulnerable عائلة في وضع صعب": "Casilla de verificación61",
   "Família monoparental en precarietat أب أو أم وحيد(ة) في وضع صعب": "Casilla de verificación62",
   "Riscos psicosocials ضغط نفسي أو صدمة": "Casilla de verificación63",
+  "Riscos psicosocials\nضغط نفسي أو صدمة": "Casilla de verificación63",
   "Explotació o abús استغلال أو إساءة": "Casilla de verificación64",
+  "Explotació o abús\nاستغلال أو إساءة": "Casilla de verificación64",
 };
 
 /** Casilla "Otros (especificar)" — es marca si hi ha text a Altres factors. */

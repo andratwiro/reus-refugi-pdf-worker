@@ -309,18 +309,20 @@ export const VULNERABILITAT_CASILLA: Record<string, string> = {
   "selpfLHy7mG04qH1p": "Casilla de verificación63", // Riscos psicosocials
   "selFf62XJhsvKkehb": "Casilla de verificación64", // Exposició explotació
 
-  // Per nom (fallback)
-  "Aïllament social o manca de xarxa de suport": "Casilla de verificación54",
-  "Sensellarisme o habitatge precari": "Casilla de verificación55",
-  "Víctima de discriminació o exclusió social": "Casilla de verificación56",
-  "Manca d'ingressos suficients": "Casilla de verificación57",
-  "Pobresa o risc d'exclusió econòmica": "Casilla de verificación58",
-  "Dificultat d'accés a l'ocupació": "Casilla de verificación59",
-  "Persones a càrrec (menors, dependents)": "Casilla de verificación60",
-  "Unitat familiar en situació de vulnerabilitat": "Casilla de verificación61",
-  "Monoparentalitat en context de precarietat": "Casilla de verificación62",
-  "Riscos psicosocials": "Casilla de verificación63",
-  "Exposició a situacions d'explotació o abús": "Casilla de verificación64",
+  // Per nom (fallback). Els noms d'opció a Airtable inclouen una segona línia
+  // amb la traducció àrab (separador \n real). Si Rob els torna a renombrar,
+  // els IDs sel... de sobre fan de xarxa de seguretat.
+  "Aïllament social\nعزلة اجتماعية": "Casilla de verificación54",
+  "Sensellarisme o habitatge precari\nبدون مسكن أو سكن غير لائق": "Casilla de verificación55",
+  "Discriminació o exclusió\nتمييز أو إقصاء": "Casilla de verificación56",
+  "Manca d'ingressos\nلا يوجد دخل كافٍ": "Casilla de verificación57",
+  "Pobresa o risc d'exclusió econòmica\nفقر أو ضائقة اقتصادية": "Casilla de verificación58",
+  "Dificultat per trobar feina\nصعوبة في إيجاد عمل": "Casilla de verificación59",
+  "Persones a càrrec (menors, gent gran)\nأشخاص تحت رعايتي (أطفال، مسنون)": "Casilla de verificación60",
+  "Família en situació vulnerable\nعائلة في وضع صعب": "Casilla de verificación61",
+  "Família monoparental en precarietat\nأب أو أم وحيد(ة) في وضع صعب": "Casilla de verificación62",
+  "Riscos psicosocials\nضغط نفسي أو صدمة": "Casilla de verificación63",
+  "Explotació o abús\nاستغلال أو إساءة": "Casilla de verificación64",
 };
 
 /** Casilla "Otros (especificar)" — es marca si hi ha text a Altres factors. */

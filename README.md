@@ -232,10 +232,16 @@ curl https://<el-teu-worker>.workers.dev/mercurio.user.js | head -30
 
 ### Connectar Airtable
 
-Per a `/generate` i `/anexo2`: crea un camp Button a la taula corresponent que
-dispari una Automation tipus "Run script". Enganxa el codi de
+Per a `/generate`: crea un camp Button a la taula Casos que dispari una
+Automation tipus "Run script". Enganxa el codi de
 [`airtable-automation.js`](airtable-automation.js) i actualitza les dues
 primeres línies amb el teu `WORKER_URL` i `SHARED_SECRET`.
+
+Per a `/anexo2`: a una Dashboard d'Airtable afegeix una Scripting Extension
+i enganxa el codi de
+[`airtable-extension-anexo2.js`](airtable-extension-anexo2.js) (mateixes
+dues primeres constants). El voluntari selecciona la fila de
+*Informes de Vulnerabilitat* i clica Run.
 
 Per a Mercurio: instal·la Tampermonkey al navegador, obre la URL
 `https://<el-teu-worker>.workers.dev/mercurio.user.js` i Tampermonkey detectarà
@@ -269,7 +275,8 @@ scripts/
   optimize-airtable-pdfs.ts
 
 mock/                  ← fixtures de casos reals + sintètics per a tests
-airtable-automation.js ← codi per enganxar dins d'Airtable (botó → Worker)
+airtable-automation.js       ← script per Automation /generate (botó Casos)
+airtable-extension-anexo2.js ← script per Scripting Extension /anexo2 (Dashboard)
 wrangler.toml          ← config del Worker (vars públiques, assets binding, data rules)
 ```
 

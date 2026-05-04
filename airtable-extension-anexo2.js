@@ -1,36 +1,26 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  AIRTABLE AUTOMATION SCRIPT — Generar Dossier (POST /generate)
+ *  AIRTABLE SCRIPTING EXTENSION — Generar Informe de Vulnerabilitat
+ *  POST /anexo2
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Copia aquest codi a l'Airtable Automation que es dispara pel botó.
+ * Aquest script viu a una Scripting Extension d'una Dashboard d'Airtable
+ * (el que es veu com "Dashboard 1 → generar"). El voluntari selecciona una
+ * fila de la taula `Informes de Vulnerabilitat` i el script crida el Worker
+ * per generar el PDF.
  *
- * SETUP A AIRTABLE (fes-ho un cop):
+ * Diferent de `airtable-automation.js`:
+ *   - Aquell és una Automation (button → run script).
+ *   - Aquest és una Scripting Extension (UI interactiva al dashboard).
  *
- *  1. A la taula Casos, crea un camp tipus "Button"
- *     - Etiqueta: "🔘 Generar dossier"
- *     - Action: "Run script" (triggera l'automation)
- *
- *  2. Automations → Create automation "Generar dossier"
- *     - Trigger: "When a button is clicked"
- *     - Table: Casos
- *     - Button: el camp que has creat
- *
- *  3. Add action: "Run script"
- *     - Input variables:
- *         recordId   → Airtable record ID (usa {recordId} del trigger)
- *     - Script: enganxa el codi de sota
- *
- *  4. Constants al script:
- *     - WORKER_URL      → https://reus-refugi-pdf-worker.<subdomain>.workers.dev
- *     - SHARED_SECRET   → el mateix string que vas posar al Worker via
- *                          `npx wrangler secret put SHARED_SECRET`
- *
- *  5. Test: clica el botó en un cas, hauria d'aparèixer un PDF al camp
- *     "Dossier generat" en ~5-10 segons.
+ * SETUP:
+ *  1. Dashboard → Add an extension → Scripting
+ *  2. Edit code → enganxa aquest codi
+ *  3. Constants WORKER_URL i SHARED_SECRET (valors de wrangler)
+ *  4. Run → seleccionar fila → genera el PDF
  *
  *  IMPORTANT: si modifiques aquest fitxer al repo, recorda copiar-lo
- *  manualment al script de l'Airtable Automation — no hi ha sync automàtic.
+ *  manualment a l'extensió — no hi ha sync automàtic.
  *
  * ─────────────────────────────────────────────────────────────────────────
  */
@@ -39,29 +29,38 @@
 const WORKER_URL = "https://reus-refugi-pdf-worker.YOUR-SUBDOMAIN.workers.dev";
 const SHARED_SECRET = "PASTE-THE-SAME-SECRET-YOU-SET-IN-WRANGLER";
 
-const inputConfig = input.config();
-const recordId = inputConfig.recordId;
+const TABLE_NAME = "Informes de Vulnerabilitat";
 
-if (!recordId) {
-  throw new Error("No recordId provided by the button trigger");
+const table = base.getTable(TABLE_NAME);
+const record = await input.recordAsync("Selecciona fila", table);
+if (!record) {
+  output.text("Cap fila seleccionada.");
+  return;
 }
 
-console.log(`Generating dossier for record: ${recordId}`);
+output.markdown(`⏳ Generant informe per **${record.name}**...`);
 
-const result = await callWorker(`${WORKER_URL}/generate`, SHARED_SECRET, { recordId });
+const result = await callWorker(`${WORKER_URL}/anexo2`, SHARED_SECRET, {
+  recordId: record.id,
+});
 
-console.log(`✅ Dossier generat: ${result.filename} (${result.sizeBytes} bytes)`);
-output.set("filename", result.filename);
-output.set("sizeBytes", result.sizeBytes);
+output.markdown(`✅ **${result.filename}** (${result.sizeBytes} bytes)`);
 
 // ─────────────────────────────────────────────────────────────────────────
 //  callWorker — POST JSON i parseja la resposta amb missatges d'error útils.
 //
-//  Per què cal: Airtable Scripting fa `await response.json()` i si el cos
-//  no és JSON (Cloudflare 1xxx HTML error page, timeout, body buit, etc.)
-//  fallava amb "JSON.parse: unexpected character at line 1 column 1" i
-//  perdíem la causa real. Aquí llegim text → parsegem amb try/catch →
-//  re-llencem amb el contingut real perquè es vegi al log de l'Automation.
+//  Per què cal: feien `await response.json()` directament i si el cos no
+//  era JSON (Cloudflare 1xxx HTML error page, timeout 524, body buit per
+//  fetch avortat...) saltava "SyntaxError: JSON.parse: unexpected character
+//  at line 1 column 1" sense pista de la causa real. Aquí llegim text →
+//  parsegem amb try/catch → re-llencem amb el contingut real perquè es
+//  vegi al panell d'error de l'extensió.
+//
+//  Possibles causes intermitents per /anexo2 (per record):
+//   - Bursts paral·lels de voluntaris → 429 d'Airtable + 30s retry > timeout
+//     del fetch del browser de l'extensió.
+//   - Worker excedeix CPU/wall-time per renders pesats.
+//   - Cloudflare Worker cold start + 524.
 // ─────────────────────────────────────────────────────────────────────────
 async function callWorker(url, secret, body) {
   let response;

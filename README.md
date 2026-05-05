@@ -188,9 +188,8 @@ npx wrangler secret put PRESENTADOR_TIPODOC  # NF (NIE) | NV (DNI) | PA (passapo
 npx wrangler secret put PRESENTADOR_MOBIL
 npx wrangler secret put PRESENTADOR_EMAIL
 
-# 5. Defineix les dades PII de l'entitat (telèfon + representant legal)
+# 5. Defineix les dades PII del representant legal de l'entitat
 #    — necessari per omplir les seccions 2/3 dels EX-31/EX-32
-npx wrangler secret put ENTITAT_TELEFON      # mòbil de contacte de l'entitat
 npx wrangler secret put REPRESENTANT_NOM     # "NOM COGNOM1 COGNOM2" majúscules
 npx wrangler secret put REPRESENTANT_DNI     # DNI/NIE del representant legal
 npx wrangler secret put REPRESENTANT_TITOL   # ex. "PRESIDENTE", "SECRETARIO"
@@ -295,7 +294,7 @@ vistes i automatitzacions des de zero. Després només cal:
 
 1. Connectar el formulari de Tally (o el teu propi punt d'entrada) a la taula `Casos`.
 2. Substituir els IDs de base i taula a `wrangler.toml` pels de la teva còpia.
-3. Configurar els secrets de l'entitat (`PRESENTADOR_*`, `ENTITAT_TELEFON`, `REPRESENTANT_*`).
+3. Configurar els secrets de l'entitat (`PRESENTADOR_*`, `REPRESENTANT_*`).
 
 ### Hard-codings específics
 
@@ -303,10 +302,10 @@ vistes i automatitzacions des de zero. Després només cal:
   Mercurio) es configura via els 5 secrets `PRESENTADOR_*`. Cada entitat ha de
   fer-ho amb les seves pròpies dades — no hi ha valors per defecte al codi.
 - El **representant legal** de l'entitat (qui signa els PDFs EX-31/EX-32) es
-  configura via `ENTITAT_TELEFON` i els 3 secrets `REPRESENTANT_*`. Cap valor
-  PII queda al codi.
-- Les **dades públiques de l'entitat** (nom, NIF, domicili, email del registre
-  d'associacions, RECEX, `tipusEntitat`) viuen a `ENTITAT_REUS_REFUGI_BASE` a
+  configura via els 3 secrets `REPRESENTANT_*`. Cap valor PII queda al codi.
+- Les **dades públiques de l'entitat** (nom, NIF, domicili, telèfon i email
+  del registre d'associacions, RECEX, `tipusEntitat`) viuen a
+  `ENTITAT_REUS_REFUGI_BASE` a
   [`src/mappings.ts`](src/mappings.ts) — cada fork ha d'editar aquesta constant
   amb les dades de la seva entitat. Posa `tipusEntitat: "admin_publica"` si
   ets una administració pública competent en assistència social, o

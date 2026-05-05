@@ -78,7 +78,6 @@ async function main(): Promise<void> {
   // Mock entitat: usa les dades públiques + valors de placeholder PII per testing
   const entitat: EntitatConfig = {
     ...ENTITAT_REUS_REFUGI_BASE,
-    telefon: "+34 600 000 000",
     representantNom: "REPRESENTANT TEST",
     representantDni: "00000000T",
     representantTitol: "PRESIDENT",

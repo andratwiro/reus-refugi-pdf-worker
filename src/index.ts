@@ -32,9 +32,8 @@ export interface Env {
   PRESENTADOR_MOBIL: string;
   PRESENTADOR_EMAIL: string;
 
-  // Entitat — dades PII de l'entitat i del representant legal. Configurar
-  // via `npx wrangler secret put ENTITAT_TELEFON` / `REPRESENTANT_*`.
-  ENTITAT_TELEFON: string;
+  // Entitat — dades PII del representant legal. Configurar via
+  // `npx wrangler secret put REPRESENTANT_*`.
   REPRESENTANT_NOM: string;
   REPRESENTANT_DNI: string;
   REPRESENTANT_TITOL: string;
@@ -157,7 +156,7 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
   const entitat = buildEntitat(env);
   if (!entitat) {
     return corsJson(
-      { error: "ENTITAT_TELEFON / REPRESENTANT_* secrets not configured. See README → Setup." },
+      { error: "REPRESENTANT_* secrets not configured. See README → Setup." },
       request,
       500,
     );
@@ -265,7 +264,7 @@ async function handleAnexo2(request: Request, env: Env): Promise<Response> {
   const entitat = buildEntitat(env);
   if (!entitat) {
     return corsJson(
-      { error: "ENTITAT_TELEFON / REPRESENTANT_* secrets not configured. See README → Setup." },
+      { error: "REPRESENTANT_* secrets not configured. See README → Setup." },
       request,
       500,
     );
@@ -850,13 +849,12 @@ function buildPresentador(env: Env): PresentadorConfig | null {
  * with PII fields from env secrets. Returns null if any PII secret is missing.
  */
 function buildEntitat(env: Env): EntitatConfig | null {
-  const { ENTITAT_TELEFON, REPRESENTANT_NOM, REPRESENTANT_DNI, REPRESENTANT_TITOL } = env;
-  if (!ENTITAT_TELEFON || !REPRESENTANT_NOM || !REPRESENTANT_DNI || !REPRESENTANT_TITOL) {
+  const { REPRESENTANT_NOM, REPRESENTANT_DNI, REPRESENTANT_TITOL } = env;
+  if (!REPRESENTANT_NOM || !REPRESENTANT_DNI || !REPRESENTANT_TITOL) {
     return null;
   }
   return {
     ...ENTITAT_REUS_REFUGI_BASE,
-    telefon: ENTITAT_TELEFON,
     representantNom: REPRESENTANT_NOM,
     representantDni: REPRESENTANT_DNI,
     representantTitol: REPRESENTANT_TITOL,

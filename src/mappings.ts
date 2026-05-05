@@ -63,8 +63,8 @@ export const CASOS = {
 
 /**
  * Public entity data from the Generalitat de Catalunya's association registry
- * (form J0225, 64431 al Registre d'Associacions). PII fields (telefon,
- * representantNom/Dni/Titol) live in env secrets — see buildEntitat() in index.ts.
+ * (form J0225, 64431 al Registre d'Associacions). PII fields (representant
+ * Nom/Dni/Titol) live in env secrets — see buildEntitat() in index.ts.
  *
  * For other NGOs forking this worker: edit these constants to your own
  * registry data. Tots els camps són dades públiques del registre d'associacions
@@ -81,6 +81,7 @@ export const ENTITAT_REUS_REFUGI_BASE = {
   cp: "43201",
   provincia: "TARRAGONA",
 
+  telefon: "+34 623 78 41 52",
   email: "info@reusrefugi.cat",
 
   recexNum: "26e00030037126",

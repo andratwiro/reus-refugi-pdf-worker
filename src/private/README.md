@@ -51,5 +51,5 @@ es llegeixen a runtime.
 
 Substitueix els dos PNGs pels de la teva entitat abans de fer els 3 comandos
 del setup. Tampoc oblidis editar `ENTITAT_*_BASE` a `src/mappings.ts` i
-configurar els secrets `ENTITAT_TELEFON` / `REPRESENTANT_*` (vegeu
+configurar els secrets `REPRESENTANT_*` (vegeu
 `wrangler.toml`).

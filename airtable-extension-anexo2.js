@@ -40,11 +40,41 @@ if (!record) {
 
 output.markdown(`⏳ Generant informe per **${record.name}**...`);
 
-const result = await callWorker(`${WORKER_URL}/anexo2`, SHARED_SECRET, {
+const result = await callWorkerWithRetry(`${WORKER_URL}/anexo2`, SHARED_SECRET, {
   recordId: record.id,
 });
 
 output.markdown(`✅ **${result.filename}** (${result.sizeBytes} bytes)`);
+
+// ─────────────────────────────────────────────────────────────────────────
+//  callWorkerWithRetry — retry transparent en 429 / 5xx / non-JSON.
+//
+//  Backoff: 2s, 4s, 8s (3 retries màxim). Cobreix el lockout de 30s
+//  d'Airtable per burst (5 req/sec per base) i els Cloudflare 524
+//  intermitents.
+// ─────────────────────────────────────────────────────────────────────────
+async function callWorkerWithRetry(url, secret, body) {
+  const delays = [2000, 4000, 8000];
+  let lastErr;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await callWorker(url, secret, body);
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err.message || err);
+      const retryable =
+        / HTTP 429\b/.test(msg) ||
+        / HTTP 5\d\d\b/.test(msg) ||
+        /non-JSON/.test(msg) ||
+        /empty body/.test(msg) ||
+        /Network error/.test(msg);
+      if (!retryable || attempt === delays.length) throw err;
+      output.markdown(`⏳ Reintent ${attempt + 1}/${delays.length} en ${delays[attempt]/1000}s...`);
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 //  callWorker — POST JSON i parseja la resposta amb missatges d'error útils.

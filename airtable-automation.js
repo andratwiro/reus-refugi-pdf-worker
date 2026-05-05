@@ -48,11 +48,41 @@ if (!recordId) {
 
 console.log(`Generating dossier for record: ${recordId}`);
 
-const result = await callWorker(`${WORKER_URL}/generate`, SHARED_SECRET, { recordId });
+const result = await callWorkerWithRetry(`${WORKER_URL}/generate`, SHARED_SECRET, { recordId });
 
 console.log(`✅ Dossier generat: ${result.filename} (${result.sizeBytes} bytes)`);
 output.set("filename", result.filename);
 output.set("sizeBytes", result.sizeBytes);
+
+// ─────────────────────────────────────────────────────────────────────────
+//  callWorkerWithRetry — retry transparent en 429 / 5xx / non-JSON.
+//
+//  Backoff: 2s, 4s, 8s (3 retries màxim). Cobreix el lockout de 30s
+//  d'Airtable per burst (5 req/sec per base) i els Cloudflare 524
+//  intermitents.
+// ─────────────────────────────────────────────────────────────────────────
+async function callWorkerWithRetry(url, secret, body) {
+  const delays = [2000, 4000, 8000];
+  let lastErr;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await callWorker(url, secret, body);
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err.message || err);
+      const retryable =
+        / HTTP 429\b/.test(msg) ||
+        / HTTP 5\d\d\b/.test(msg) ||
+        /non-JSON/.test(msg) ||
+        /empty body/.test(msg) ||
+        /Network error/.test(msg);
+      if (!retryable || attempt === delays.length) throw err;
+      console.log(`Retry ${attempt + 1}/${delays.length} in ${delays[attempt]}ms — ${msg}`);
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 //  callWorker — POST JSON i parseja la resposta amb missatges d'error útils.

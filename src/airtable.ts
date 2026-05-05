@@ -22,26 +22,37 @@ export class AirtableClient {
   ) {}
 
   /**
-   * fetch + auto-retry on 429 (Airtable rate limit).
+   * fetch + bounded retry on 429 (Airtable rate limit).
    *
-   * Airtable enforces 5 req/sec per base; a single burst above that locks
-   * the entire base for 30 seconds via HTTP 429 with a `Retry-After` header.
-   * Amb 6-8 voluntaris clicant en paral·lel (Anexo II), és fàcil arribar-hi.
-   * Aquest helper segueix `Retry-After` (o 30s per defecte) i reintenta una
-   * vegada — sufficient per cobrir el lockout sense fer esperar el voluntari
-   * més enllà d'una pausa única.
+   * Airtable enforces 5 req/sec per base; un burst per damunt bloqueja la
+   * base 30s via HTTP 429 amb `Retry-After`. Abans esperàvem fins a 30s
+   * dins del worker — però Cloudflare Workers tenen ~30s de wall-time, així
+   * que aquell sleep mataba tota la request: el client rebia un Cloudflare
+   * 524 amb HTML, i `await response.json()` al script d'Airtable petava amb
+   * "JSON.parse: unexpected character at line 1 column 1".
+   *
+   * Ara cappem l'espera a `MAX_RETRY_MS`. Si Airtable demana més temps,
+   * deixem que el 429 bubble out i el client (script d'Airtable) reintenti
+   * — millor un error JSON clar que un timeout opac.
    */
   private async fetchWithRetry(
     url: string,
     init: RequestInit,
   ): Promise<Response> {
+    const MAX_RETRY_MS = 5000;
     let resp = await fetch(url, init);
     if (resp.status !== 429) return resp;
     const retryAfterRaw = resp.headers.get("Retry-After");
     const retryAfter = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
-    const waitMs = (Number.isFinite(retryAfter) ? retryAfter : 30) * 1000;
-    console.warn(`Airtable 429 — waiting ${waitMs}ms before single retry (${url})`);
-    await new Promise((r) => setTimeout(r, waitMs));
+    const requestedMs = (Number.isFinite(retryAfter) ? retryAfter : 5) * 1000;
+    if (requestedMs > MAX_RETRY_MS) {
+      console.warn(
+        `Airtable 429 — Retry-After ${requestedMs}ms exceeds cap ${MAX_RETRY_MS}ms; bubbling 429 to client (${url})`,
+      );
+      return resp;
+    }
+    console.warn(`Airtable 429 — waiting ${requestedMs}ms before single retry (${url})`);
+    await new Promise((r) => setTimeout(r, requestedMs));
     resp = await fetch(url, init);
     return resp;
   }

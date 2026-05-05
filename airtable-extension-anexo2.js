@@ -93,15 +93,21 @@ async function callWorkerWithRetry(url, secret, body) {
 //   - Cloudflare Worker cold start + 524.
 // ─────────────────────────────────────────────────────────────────────────
 async function callWorker(url, secret, body) {
+  // POST "simple" — no dispara CORS preflight perquè:
+  //  - Content-Type: text/plain (els 3 valors "simples" són text/plain,
+  //    application/x-www-form-urlencoded i multipart/form-data)
+  //  - cap Authorization header (Authorization sempre dispara preflight)
+  //
+  // El secret va dins el body JSON. Necessari per a Scripting Extensions
+  // de Dashboards d'Airtable, on el sandbox de l'iframe rebutja preflights
+  // cap a *.workers.dev silenciosament → fetch() rejecta amb NetworkError
+  // indistingible d'un DNS fail.
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ ...body, secret }),
     });
   } catch (err) {
     throw new Error(`Network error calling worker: ${err.message || err}`);

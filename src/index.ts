@@ -67,10 +67,14 @@ export interface Env {
 interface GenerateRequest {
   recordId: string;
   baseId?: string;
+  /** Auth fallback per scripts d'Airtable que no poden enviar Authorization
+   *  header (preflight CORS bloquejat). Vegeu checkBodySecret. */
+  secret?: string;
 }
 
 interface Anexo2Request {
   recordId: string;
+  secret?: string;
 }
 
 interface GmailDraftRequest {
@@ -136,13 +140,14 @@ export default {
 // ─── /generate (existing) ───────────────────────────────────────────────────
 
 async function handleGenerate(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
-
   let body: GenerateRequest;
   try {
     body = (await request.json()) as GenerateRequest;
   } catch {
     return corsJson({ error: "Invalid JSON body" }, request, 400);
+  }
+  if (!checkAuth(request, env) && !checkBodySecret(body, env)) {
+    return unauthorized(corsHeaders(request));
   }
   if (!body.recordId || !body.recordId.startsWith("rec")) {
     return corsJson({ error: "Missing or invalid recordId" }, request, 400);
@@ -244,13 +249,14 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
 // ─── /anexo2 ────────────────────────────────────────────────────────────────
 
 async function handleAnexo2(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
-
   let body: Anexo2Request;
   try {
     body = (await request.json()) as Anexo2Request;
   } catch {
     return corsJson({ error: "Invalid JSON body" }, request, 400);
+  }
+  if (!checkAuth(request, env) && !checkBodySecret(body, env)) {
+    return unauthorized(corsHeaders(request));
   }
   if (!body.recordId || !body.recordId.startsWith("rec")) {
     return corsJson({ error: "Missing or invalid recordId" }, request, 400);
@@ -820,6 +826,21 @@ async function handleOptimizeDispatch(request: Request, env: Env): Promise<Respo
 function checkAuth(request: Request, env: Env): boolean {
   const auth = request.headers.get("Authorization") || "";
   return auth === `Bearer ${env.SHARED_SECRET}`;
+}
+
+/**
+ * Valida secret embedded dins el body. Permet "simple POST" sense
+ * Authorization header (Authorization dispara preflight CORS, bloquejat
+ * silenciosament per sandboxes d'Airtable Dashboards en alguns setups).
+ * Combinat amb Content-Type: text/plain al client, evita preflight sencer.
+ */
+function checkBodySecret(body: unknown, env: Env): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "secret" in body &&
+    (body as { secret: unknown }).secret === env.SHARED_SECRET
+  );
 }
 
 /**

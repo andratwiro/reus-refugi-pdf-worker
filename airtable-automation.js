@@ -94,15 +94,14 @@ async function callWorkerWithRetry(url, secret, body) {
 //  re-llencem amb el contingut real perquè es vegi al log de l'Automation.
 // ─────────────────────────────────────────────────────────────────────────
 async function callWorker(url, secret, body) {
+  // POST "simple" sense preflight CORS — Content-Type text/plain + secret
+  // dins el body. Veure airtable-extension-anexo2.js pel detall.
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ ...body, secret }),
     });
   } catch (err) {
     throw new Error(`Network error calling worker: ${err.message || err}`);

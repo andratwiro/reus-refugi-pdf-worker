@@ -387,25 +387,21 @@ async function handleGmailDraft(request: Request, env: Env): Promise<Response> {
 
 // ─── Mercurio handlers ──────────────────────────────────────────────────────
 
-const ALLOWED_CORS_ORIGINS = [
-  "https://mercurio.delegaciondelgobierno.gob.es",
-  "http://localhost:3001",
-  "https://airtable.com",
-  "https://app.airtable.com",
-];
-// Airtable Scripting Extensions corren en iframes sandboxed amb subdomain
-// dinàmic. Reflectim l'Origin si fa match d'algun d'aquests patrons.
-const AIRTABLE_ORIGIN_PATTERNS = [
-  /^https:\/\/[a-z0-9-]+\.airtableblocks\.com$/,
-  /^https:\/\/[a-z0-9-]+\.airtableusercontent\.com$/,
-];
-
+// Airtable Scripting Extensions corren en iframes sandboxed amb subdomains
+// dinàmics que Airtable canvia sense avís (airtableblocks.com,
+// airtableusercontent.com, *.airtable.com, ...). Un allowlist regex feia
+// que els navegadors retornessin "NetworkError" silenciós quan Airtable
+// movia les extensions a un origin nou — la response del worker tenia un
+// Access-Control-Allow-Origin que no matchejava i el browser bloquejava
+// el body abans que arribés al script.
+//
+// Com que l'auth real és `Authorization: Bearer SHARED_SECRET`, CORS aquí
+// és defense-in-depth de poc valor. Reflectim qualsevol origin que ens
+// envïi el browser; el secret continua sent l'única cosa que protegeix
+// l'API.
 function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") ?? "";
-  const isAllowed =
-    ALLOWED_CORS_ORIGINS.includes(origin) ||
-    AIRTABLE_ORIGIN_PATTERNS.some((re) => re.test(origin));
-  const allow = isAllowed ? origin : ALLOWED_CORS_ORIGINS[0];
+  const allow = origin || "*";
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Headers": "Authorization, Content-Type",

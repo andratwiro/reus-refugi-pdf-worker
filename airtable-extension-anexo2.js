@@ -30,6 +30,8 @@ const WORKER_URL = "https://reus-refugi-pdf-worker.YOUR-SUBDOMAIN.workers.dev";
 const SHARED_SECRET = "PASTE-THE-SAME-SECRET-YOU-SET-IN-WRANGLER";
 
 const TABLE_NAME = "Informes de Vulnerabilitat";
+const PDF_FIELD = "Informe generat";   // multipleAttachments — INFORMES_VULN_PDF_FIELD
+const TIMESTAMP_FIELD = "Generat el";  // dateTime — INFORMES_VULN_GENERATED_AT_FIELD
 
 const table = base.getTable(TABLE_NAME);
 const record = await input.recordAsync("Selecciona fila", table);
@@ -40,11 +42,55 @@ if (!record) {
 
 output.markdown(`⏳ Generant informe per **${record.name}**...`);
 
-const result = await callWorkerWithRetry(`${WORKER_URL}/anexo2`, SHARED_SECRET, {
-  recordId: record.id,
-});
+// Marquem el moment de la sol·licitud per a la verificació post-fail.
+// Si el fetch falla però el worker va completar la generació mentre la
+// resposta es perdia (Cloudflare timeout, browser tancant la connexió,
+// CORS bloqueja el body...), Airtable tindrà el PDF i `Generat el` >
+// requestStartedAt — el detectem i tractem com a èxit.
+const requestStartedAt = Date.now() - 5000; // marge de 5s pel clock skew
+
+let result;
+try {
+  result = await callWorkerWithRetry(`${WORKER_URL}/anexo2`, SHARED_SECRET, {
+    recordId: record.id,
+  });
+} catch (err) {
+  output.markdown(`⚠️ Cap resposta del worker — verifico Airtable...`);
+  const verified = await verifyGeneratedAfter(table, record.id, requestStartedAt);
+  if (verified) {
+    result = { ok: true, ...verified };
+  } else {
+    throw err;
+  }
+}
 
 output.markdown(`✅ **${result.filename}** (${result.sizeBytes} bytes)`);
+
+// ─────────────────────────────────────────────────────────────────────────
+//  verifyGeneratedAfter — comprova si el PDF ja està a Airtable.
+//
+//  El worker fa la feina (Airtable upload) ABANS de retornar la resposta
+//  HTTP. Si la resposta es perd pel camí (browser tanca, Cloudflare 524,
+//  CORS bloqueja body, etc.) el PDF està igualment a Airtable. Aquesta
+//  funció rellegeix la fila i, si "Generat el" és posterior a `sinceMs`
+//  i l'attachment hi és, retorna les dades — així el script reporta èxit
+//  enlloc de fail enganyós.
+// ─────────────────────────────────────────────────────────────────────────
+async function verifyGeneratedAfter(table, recordId, sinceMs) {
+  try {
+    const fresh = await table.selectRecordAsync(recordId);
+    if (!fresh) return null;
+    const ts = fresh.getCellValue(TIMESTAMP_FIELD);
+    if (!ts) return null;
+    const tsMs = new Date(ts).getTime();
+    if (!isFinite(tsMs) || tsMs < sinceMs) return null;
+    const att = fresh.getCellValue(PDF_FIELD);
+    if (!Array.isArray(att) || att.length === 0) return null;
+    return { filename: att[0].filename, sizeBytes: att[0].size };
+  } catch {
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 //  callWorkerWithRetry — retry transparent en 429 / 5xx / non-JSON.

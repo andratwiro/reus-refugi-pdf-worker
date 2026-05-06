@@ -3,13 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Render PDF + Airtable upload + base64 encode → fàcilment >10ms CPU,
-# sobretot en cold start (parsing del bundle ~1MB de pdf-lib). Workers
-# Standard ($5/mo) accepta fins a 5 min; explicitem 30s per claredat.
-# Free plan ignora aquest setting (cap fixat a 10ms) — la solució en
-# free plan és upgrade a Workers Standard.
-[limits]
-cpu_ms = 300000
+# Workers Standard ($5/mo) ja dona 30s de CPU per defecte — suficient
+# pel render de PDF + upload base64 a Airtable. NO posis [limits] cpu_ms
+# aquí perquè l'API de Cloudflare rebutja la deploy si l'account encara
+# està en Free plan ("CPU limits are not supported for the Free plan").
+# Si volem >30s en algun moment, reactivar [limits] després de confirmar
+# que l'account està en paid plan.
 
 # Static assets — les plantilles PDF viuen dins del bundle del Worker.
 # Accessibles en runtime via env.ASSETS.fetch().

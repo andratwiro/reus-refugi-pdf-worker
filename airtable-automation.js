@@ -57,12 +57,12 @@ output.set("sizeBytes", result.sizeBytes);
 // ─────────────────────────────────────────────────────────────────────────
 //  callWorkerWithRetry — retry transparent en 429 / 5xx / non-JSON.
 //
-//  Backoff: 2s, 4s, 8s (3 retries màxim). Cobreix el lockout de 30s
-//  d'Airtable per burst (5 req/sec per base) i els Cloudflare 524
-//  intermitents.
+//  Backoff: 5s, 15s, 35s (3 retries màxim, ~55s totals). Pensat per
+//  outlast el lockout de 30s d'Airtable per burst (5 req/sec per base) i
+//  els Cloudflare 524 intermitents.
 // ─────────────────────────────────────────────────────────────────────────
 async function callWorkerWithRetry(url, secret, body) {
-  const delays = [2000, 4000, 8000];
+  const delays = [5000, 15000, 35000];
   let lastErr;
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {

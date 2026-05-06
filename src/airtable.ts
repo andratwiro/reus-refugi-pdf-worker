@@ -227,15 +227,15 @@ export class AirtableClient {
 }
 
 /**
- * Convert a Uint8Array to base64 without blowing up the stack on big buffers.
- * Workers have `btoa` but not Buffer.
+ * Convert a Uint8Array to base64.
+ *
+ * Antic: chunked btoa amb String.fromCharCode(...chunk) i concat. Per
+ * PDFs ~700KB cremava prou CPU per fer-nos saltar el límit de 10ms del
+ * Workers Free plan en cold starts.
+ *
+ * Ara: Buffer nativa via nodejs_compat. Implementació en codi natiu C++
+ * de Node, ordres de magnitud més ràpida i estable a memòria.
  */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  const chunkSize = 0x8000; // 32KB chunks
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
+  return Buffer.from(bytes).toString("base64");
 }

@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 # Free plan ignora aquest setting (cap fixat a 10ms) — la solució en
 # free plan és upgrade a Workers Standard.
 [limits]
-cpu_ms = 30000
+cpu_ms = 300000
 
 # Static assets — les plantilles PDF viuen dins del bundle del Worker.
 # Accessibles en runtime via env.ASSETS.fetch().

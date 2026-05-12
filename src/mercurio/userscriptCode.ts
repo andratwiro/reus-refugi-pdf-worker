@@ -221,6 +221,61 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     // Phase 3: cascades adreça AL FINAL (perquè handlers anteriors no les resetegin)
     results.push(...await fillCascade(payload));
 
+    // Phase 4: late overwrite per camps que Mercurio omple ASÍNCRONAMENT
+    // des de la sessió Cl@ve/IDcat. Símptoma: el voluntari obre EX31/EX32,
+    // el userscript escriu notEmailNotificacion='regularitzacio@reusrefugi.cat',
+    // i segons després Mercurio fa un fetch al perfil del cert i sobreescriu
+    // amb el gmail personal del voluntari. Resultat: el camp acaba mostrant
+    // les dades personals d'Elena/Eduard en comptes de les de l'entitat.
+    //
+    // Estratègia:
+    //  1) Esperar 1500ms (típicament la crida cert-fill de Mercurio acaba
+    //     abans). Re-escriure els 4 camps si no coincideixen amb el payload.
+    //  2) Polling fire-and-forget cada 500ms durant 3s addicionals — defensa
+    //     contra cert-fills lents. NO bloqueja la UI; fillAll() retorna
+    //     immediatament després del pas 1 perquè el voluntari no esperi.
+    //
+    // NOTA: només toquem email/mòbil (entitat), MAI nom/NIE/tipoDoc — aquests
+    // venen del cert del voluntari i han de coincidir amb qui signa.
+    const LATE_OVERWRITE_FIELDS = [
+      'notEmailNotificacion',
+      'notTelefonoMovilNotificacion',
+      'preEmailPresentador',
+      'preTelefonoMovilPresentador',
+    ];
+    await new Promise(r => setTimeout(r, 1500));
+    for (const name of LATE_OVERWRITE_FIELDS) {
+      const want = payload[name];
+      if (!want) continue;
+      const el = document.querySelector('[name="' + CSS.escape(name) + '"]');
+      if (!el) continue;
+      if (el.value === want) continue;
+      el.value = want;
+      fireEvents(el, ['input', 'change']);
+      results.push({ name, status: 'ok_late_overwrite', value: want, reason: 'cert auto-fill sobreescrit' });
+    }
+
+    // Phase 4-bis (fire-and-forget): polling per 3s. Si Mercurio fa un cert-fill
+    // tardà (>1500ms) o el voluntari clica la pestanya DOMICILIO i Mercurio
+    // re-injecta dades, ho corregim silenciosament. No esperem el resultat
+    // per no bloquejar la UI.
+    (async () => {
+      const POLL_DURATION = 3000;
+      const POLL_INTERVAL = 500;
+      const startPoll = Date.now();
+      while (Date.now() - startPoll < POLL_DURATION) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        for (const name of LATE_OVERWRITE_FIELDS) {
+          const want = payload[name];
+          if (!want) continue;
+          const el = document.querySelector('[name="' + CSS.escape(name) + '"]');
+          if (!el || el.value === want) continue;
+          el.value = want;
+          fireEvents(el, ['input', 'change']);
+        }
+      }
+    })();
+
     return results;
   }
 

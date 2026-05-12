@@ -14,8 +14,9 @@ import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
 import { CASOS, ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
+import { mergeToPdf, UnsupportedFormatError, type MergeInput } from "./mercurio/mergeDocs";
 
-const USERSCRIPT_VERSION = "1.4.5";
+const USERSCRIPT_VERSION = "1.5.1";
 
 export interface Env {
   // Secrets
@@ -556,8 +557,18 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
     }
   }
 
-  const payload = airtableToMercurio(recAsCase, presentador, refRec);
-  const formulario = getFormulario(recAsCase);
+  let payload: Record<string, string>;
+  let formulario: 'EX31' | 'EX32' | null;
+  try {
+    payload = airtableToMercurio(recAsCase, presentador, refRec);
+    formulario = getFormulario(recAsCase);
+  } catch (err) {
+    return corsJson(
+      { error: err instanceof Error ? err.message : String(err) },
+      request,
+      400,
+    );
+  }
 
   return corsJson({
     caso: recordId,
@@ -575,7 +586,9 @@ async function handleMercurioPayload(request: Request, env: Env): Promise<Respon
 //
 // Schema esperat:
 //   Casos.Documents              → multipleRecordLinks → Documents.id
-//   Documents.Fitxers            → multipleAttachments (1 fitxer per record)
+//   Documents.Fitxers            → multipleAttachments (1+ fitxers per record;
+//                                   si N>1 es fusionen a un únic PDF al
+//                                   download endpoint via mergeToPdf)
 //   Documents."Mercurio tipus document" → singleSelect amb la taxonomia
 //                                   alineada al <select> de Mercurio:
 //                                   Pasaporte, Antecedentes penales, Tasa,
@@ -584,6 +597,17 @@ const DOCUMENTS_TABLE = "Documents";
 const DOCS_LINK_FIELD_ON_CASOS = "Documents";
 const DOCS_ATTACHMENT_FIELD = "Fitxer";
 const DOCS_TYPE_FIELD = "Mercurio tipus document";
+const DOCS_REFERENCE_FIELD = "Referència";
+
+// Sanitize filename per Mercurio (i per Content-Disposition). Mercurio valida
+// per extensió, no accepta path separators ni cometes als noms.
+function sanitizeFilenameStem(s: string): string {
+  return (s || "")
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
 
 interface AirtableAttachment {
   id?: string;
@@ -646,7 +670,7 @@ async function handleMercurioDocuments(request: Request, env: Env): Promise<Resp
     const f = d.fields as Record<string, unknown>;
     const atts = f[DOCS_ATTACHMENT_FIELD];
     if (!Array.isArray(atts) || atts.length === 0) continue; // sense fitxer adjunt — saltem
-    const att = atts[0] as AirtableAttachment; // assumim 1 fitxer per record
+    const attsTyped = atts as AirtableAttachment[];
     const cat = f[DOCS_TYPE_FIELD];
     const mercurioCategory = typeof cat === "string"
       ? cat
@@ -654,12 +678,33 @@ async function handleMercurioDocuments(request: Request, env: Env): Promise<Resp
         ? String((cat as { name: string }).name)
         : "";
 
+    // Si hi ha un sol fitxer, l'anunciem tal qual (sense fusió). Si n'hi ha
+    // 2+, anunciem el resultat de la fusió: un únic PDF amb nom basat al camp
+    // "Referència" del record. El merge real es fa al download endpoint.
+    let filename: string;
+    let mimetype: string;
+    let sizeBytes: number;
+    if (attsTyped.length === 1) {
+      filename = attsTyped[0].filename;
+      mimetype = attsTyped[0].type ?? "application/octet-stream";
+      sizeBytes = attsTyped[0].size;
+    } else {
+      const refRaw = typeof f[DOCS_REFERENCE_FIELD] === "string"
+        ? (f[DOCS_REFERENCE_FIELD] as string)
+        : "";
+      const stem = sanitizeFilenameStem(refRaw) || `documento_${d.id}`;
+      filename = `${stem}.pdf`;
+      mimetype = "application/pdf";
+      sizeBytes = attsTyped.reduce((acc, a) => acc + (a.size || 0), 0);
+    }
+
     documents.push({
       airtableId: d.id,
-      filename: att.filename,
-      mimetype: att.type ?? "application/octet-stream",
+      filename,
+      mimetype,
       mercurioCategory,
-      sizeBytes: att.size,
+      sizeBytes,
+      attCount: attsTyped.length,
       // attId == record id de la taula Documents (no l'attachment.id intern d'Airtable).
       // Fem servir record id perquè és estable i està indexat per la nostra
       // validació security al GET /mercurio/document.
@@ -718,28 +763,83 @@ async function handleMercurioDocument(request: Request, env: Env): Promise<Respo
     console.error("document record lookup error:", err);
     return corsJson({ error: `document ${attId} not found` }, request, 404);
   }
-  const atts = (docRec.fields as Record<string, unknown>)[DOCS_ATTACHMENT_FIELD];
+  const docFields = docRec.fields as Record<string, unknown>;
+  const atts = docFields[DOCS_ATTACHMENT_FIELD];
   if (!Array.isArray(atts) || atts.length === 0) {
     return corsJson({ error: `document ${attId} has no attachment` }, request, 404);
   }
-  const att = atts[0] as AirtableAttachment;
+  const attsTyped = atts as AirtableAttachment[];
 
-  // Descarrega bytes via URL signada Airtable (server-side fetch — el voluntari
-  // mai veu aquesta URL).
-  const fileResp = await fetch(att.url);
-  if (!fileResp.ok) {
-    return corsJson({ error: `airtable download failed: ${fileResp.status}` }, request, 502);
+  // Cas senzill — 1 fitxer: passa-ho tal qual (no introduïm regressions sobre
+  // el flux que ja funciona en producció).
+  if (attsTyped.length === 1) {
+    const att = attsTyped[0];
+    const fileResp = await fetch(att.url);
+    if (!fileResp.ok) {
+      return corsJson({ error: `airtable download failed: ${fileResp.status}` }, request, 502);
+    }
+    const bytes = await fileResp.arrayBuffer();
+    const safeName = att.filename.replace(/[\\"]/g, "_");
+    return new Response(bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": att.type ?? "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${safeName}"`,
+        ...corsHeaders(request),
+      },
+    });
   }
-  const bytes = await fileResp.arrayBuffer();
 
-  // Filename: escape per evitar injection al header. RFC 6266 valor entre
-  // cometes amb backslash-escape de " i \. La majoria de filenames Airtable
-  // són ASCII safe (PDFs amb noms simples), però defensem.
-  const safeName = att.filename.replace(/[\\"]/g, "_");
-  return new Response(bytes, {
+  // Múltiples adjunts → fusió a PDF únic. Mantenim l'ordre que retorna
+  // Airtable (== ordre de pujada). Descarrega en paral·lel; pdf-lib concatena
+  // PDFs i embed-eja JPG/PNG. HEIC o altres formats: error clar 415.
+  let inputs: MergeInput[];
+  try {
+    inputs = await Promise.all(
+      attsTyped.map(async (a): Promise<MergeInput> => {
+        const r = await fetch(a.url);
+        if (!r.ok) throw new Error(`airtable download failed for ${a.filename}: ${r.status}`);
+        return {
+          bytes: new Uint8Array(await r.arrayBuffer()),
+          filename: a.filename,
+          mimetype: a.type ?? "application/octet-stream",
+        };
+      }),
+    );
+  } catch (err) {
+    console.error("document merge fetch error:", err);
+    return corsJson(
+      { error: String(err instanceof Error ? err.message : err) },
+      request,
+      502,
+    );
+  }
+
+  let mergedBytes: Uint8Array;
+  try {
+    mergedBytes = await mergeToPdf(inputs);
+  } catch (err) {
+    if (err instanceof UnsupportedFormatError) {
+      return corsJson({ error: err.message, filename: err.filename }, request, 415);
+    }
+    console.error("document merge error:", err);
+    return corsJson(
+      { error: `merge failed: ${err instanceof Error ? err.message : String(err)}` },
+      request,
+      500,
+    );
+  }
+
+  const refRaw = typeof docFields[DOCS_REFERENCE_FIELD] === "string"
+    ? (docFields[DOCS_REFERENCE_FIELD] as string)
+    : "";
+  const stem = sanitizeFilenameStem(refRaw) || `documento_${attId}`;
+  const safeName = `${stem}.pdf`.replace(/[\\"]/g, "_");
+
+  return new Response(mergedBytes, {
     status: 200,
     headers: {
-      "Content-Type": att.type ?? "application/octet-stream",
+      "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${safeName}"`,
       ...corsHeaders(request),
     },

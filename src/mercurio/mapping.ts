@@ -241,7 +241,14 @@ export function airtableToMercurio(
   refRec?: AirtableCase
 ): Record<string, string> {
   const viaLegal = fStr(rec, 'Via legal');
-  const viaCfg = VIA_LEGAL_MAP[viaLegal] ?? VIA_LEGAL_MAP['DA 21ª – Laboral'];
+  const viaCfg = VIA_LEGAL_MAP[viaLegal];
+  if (!viaCfg) {
+    throw new Error(
+      viaLegal
+        ? `Via legal desconeguda: "${viaLegal}"`
+        : "El cas no té 'Via legal' definida a Airtable",
+    );
+  }
 
   // Trim whitespace from name fields — Airtable inputs occasionally have trailing spaces.
   const nom = fStr(rec, 'Nom').trim().toUpperCase();
@@ -491,10 +498,14 @@ function emptyReagrupante(): Record<string, string> {
   };
 }
 
-/** Detecta quin form Mercurio (EX31 vs EX32) correspon a un cas Airtable */
-export function getFormulario(rec: AirtableCase): 'EX31' | 'EX32' {
+/**
+ * Detecta quin form Mercurio (EX31 vs EX32) correspon a un cas Airtable.
+ * Retorna `null` si "Via legal" està buida o no és reconeguda — el caller
+ * ha de tractar aquest cas (mostrar avís al voluntari, no inventar form).
+ */
+export function getFormulario(rec: AirtableCase): 'EX31' | 'EX32' | null {
   const viaLegal = fStr(rec, 'Via legal');
-  return VIA_LEGAL_MAP[viaLegal]?.formulario ?? 'EX32';
+  return VIA_LEGAL_MAP[viaLegal]?.formulario ?? null;
 }
 
 export { VIA_LEGAL_MAP };

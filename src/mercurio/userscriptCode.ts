@@ -465,6 +465,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
       }
       .venus-modal .venus-badge-ex31 { background: #D6F0EE; color: #0E6F6F; }
       .venus-modal .venus-badge-ex32 { background: #FCE8C9; color: #8A4B00; }
+      .venus-modal .venus-badge-warn { background: #FCEBEA; color: #B42318; }
 
       .venus-modal .venus-row-content {
         flex: 1 1 auto;
@@ -846,17 +847,23 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         row.className = 'venus-row';
         row.type = 'button';
         row.dataset.state = 'idle';
-        const badgeClass = c.formulario === 'EX31' ? 'venus-badge-ex31' : 'venus-badge-ex32';
+        // Si el cas no té "Via legal" definida a Airtable, no inventem
+        // EX31/EX32 — pintem badge d'avís i el click llançarà error explícit.
+        const missingVia = !c.viaLegal || !c.formulario;
+        const badgeClass = missingVia
+          ? 'venus-badge-warn'
+          : (c.formulario === 'EX31' ? 'venus-badge-ex31' : 'venus-badge-ex32');
+        const badgeText = missingVia ? '⚠' : (c.formulario || '');
         const [da, tag] = splitViaLegal(c.viaLegal);
         const fullName = (escapeHtml(c.nom || '') + ' ' + escapeHtml(c.cognom1 || '')).trim() || '—';
         const metaParts = [
           \`<span class="venus-id">\${escapeHtml(shortIdCas(c.idCas))}</span>\`,
-          escapeHtml(da || '?'),
-          tag ? escapeHtml(tag) : null,
+          missingVia ? '<span class="venus-status-err">Sense via legal</span>' : escapeHtml(da || '?'),
+          (!missingVia && tag) ? escapeHtml(tag) : null,
         ].filter(Boolean);
         const metaHtml = metaParts.join('<span class="venus-dot">·</span>');
         row.innerHTML = \`
-          <span class="venus-badge \${badgeClass}">\${escapeHtml(c.formulario || '')}</span>
+          <span class="venus-badge \${badgeClass}">\${escapeHtml(badgeText)}</span>
           <span class="venus-row-content">
             <span class="venus-name">\${fullName}</span>
             <span class="venus-meta">\${metaHtml}</span>
@@ -1021,7 +1028,14 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
           headers: { 'Authorization': 'Bearer ' + SHARED_SECRET },
         });
         if (!dlResp.ok) {
-          results.push({ doc, status: 'download_error', filename: doc.filename, reason: 'descàrrega ' + dlResp.status });
+          // Llegim cos com a JSON per surfaçar errors clars del Worker
+          // (p.ex. HEIC no suportat, format no acceptat per fusió).
+          let reason = 'descàrrega ' + dlResp.status;
+          try {
+            const errBody = await dlResp.json();
+            if (errBody && errBody.error) reason = String(errBody.error);
+          } catch (_) { /* cos no JSON */ }
+          results.push({ doc, status: 'download_error', filename: doc.filename, reason });
           continue;
         }
         blob = await dlResp.blob();
@@ -1087,6 +1101,16 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
   async function fillCase(c, statusDiv, row) {
     const mode = getMode();
+
+    // Guard: el cas ha de tenir "Via legal" definida. Sense ella no podem
+    // saber EX31/EX32 ni omplir el form correctament, i el comportament
+    // antic (fallback EX32 silenciós) acabava enviant brossa.
+    if (!c.viaLegal || !c.formulario) {
+      setRowState(row, 'error');
+      statusDiv.innerHTML = '<span class="venus-error-line">Aquest cas no té \\'Via legal\\' definida a Airtable.</span><br>Edita el cas i selecciona-la abans de continuar.';
+      setFooterText('Falta dada al cas.');
+      return;
+    }
 
     // MODE INFO (seleccionModelo-XX.html): no toquem el DOM ni l'estat de
     // la fila, només indiquem al voluntari quin radio ha de triar.

@@ -20,13 +20,12 @@ Tota la paperassa de regularització passa per quatre baules connectades:
   directament a Airtable.
 - **Venus (Airtable) actua com a core de dades.** És la font de veritat única:
   cada cas, document, factor de vulnerabilitat i relació familiar viu aquí.
-  Els voluntaris hi treballen el dia a dia.
 - **Venus genera l'informe de vulnerabilitat amb un clic** i, a la mateixa
   fila, prepara un esborrany de Gmail amb el PDF adjunt llest per enviar al
-  destinatari (típicament la Subdelegació o l'Oficina d'Estrangeria).
+  usuari.
 - **Un userscript de Tampermonkey automatitza la pujada de dades de Venus
   cap a Mercurio**, omplint els ~144 camps del formulari telemàtic EX-31/EX-32
-  perquè el voluntari només hagi de revisar i signar amb AutoFirma.
+  + pujada de arxius perquè el voluntari només hagi de revisar i signar amb AutoFirma.
 
 ```
 Tally  →  Venus (Airtable)  ─┬─→  Informe de vulnerabilitat (PDF) + draft Gmail
@@ -35,12 +34,6 @@ Tally  →  Venus (Airtable)  ─┬─→  Informe de vulnerabilitat (PDF) + dr
 ```
 
 ---
-
-## Les dues coses interessants
-
-> La resta del Worker (dossiers EX-31/EX-32 PDF, proxy Gmail) són accessoris.
-> El que de debò aporta valor avui és això:
-
 ### 🩺 Omplir informes de vulnerabilitat — en producció
 
 `POST /anexo2` — el voluntari prem un botó a la taula *Informes de Vulnerabilitat*
@@ -48,11 +41,6 @@ d'Airtable i, en pocs segons, es genera un **certificat de vulnerabilitat**
 oficial (Anexo II del procediment EX-32) signat amb les dades de l'entitat
 acreditada (RECEX), llest per adjuntar a la sol·licitud i per enviar com a
 esborrany de Gmail amb un altre clic.
-
-Estalvia temps real per cas: és el document que substitueix l'informe
-d'inserció social municipal — abans calia redactar-lo a mà — i recull els
-factors de vulnerabilitat (Casillas 54-64) que el voluntari ja tenia marcats
-a Airtable. **Funciona, és estable, i s'usa cada dia.**
 
 Detall tècnic: el template és el PDF buit oficial del Ministeri (descarregat
 d'inclusion.gob.es) sense AcroForm; pintem totes les dades — incloent el
@@ -66,7 +54,7 @@ Drive, Samsung Notes…). Vegeu [`src/anexo2.ts`](src/anexo2.ts) i
 [Mercurio](https://mercurio.delegaciondelgobierno.gob.es) és la plataforma
 oficial per presentar EX-31 i EX-32 telemàticament: ~144 camps de formulari
 que els voluntaris havien de copiar-pegar manualment des d'Airtable cas per
-cas. **Aquí hi ha el potencial gros.**
+cas.
 
 Un **userscript de Tampermonkey** servit per `GET /mercurio.user.js`:
 

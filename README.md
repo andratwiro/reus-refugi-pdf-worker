@@ -65,13 +65,11 @@ Un **userscript de Tampermonkey** servit per `GET /mercurio.user.js`:
    checkboxes condicionals i el bloc reagrupant (DA 21ª) si el cas té un
    referent familiar.
 4. **No submiteja.** El voluntari revisa les dades i prem "Firmar y registrar"
-   amb AutoFirma. La signatura amb certificat digital és un acte intencional,
-   mai automatitzat.
+   amb AutoFirma.
 
 És **beta**: codis confirmats per a DA 21ª Laboral/Familiar/Vulnerabilitat;
 codis de DA 20ª (PI) encara s'estan validant amb casos reals. La pujada de
-documents adjunts (passaport, antecedents, etc.) encara no està implementada
-i és el següent pas natural.
+documents adjunts (passaport, antecedents, etc.) està implementada.
 
 Endpoints relacionats:
 
@@ -92,11 +90,6 @@ Codi a [`src/mercurio/`](src/mercurio/):
 També hi ha codi al Worker per a aquestes coses, però **no són el focus** del
 projecte ara mateix. Els documentem aquí perquè existeixen i funcionen:
 
-- **`POST /generate` — dossier EX-31 / EX-32 en PDF.** Genera el PDF complet
-  del formulari (dades + signatura digital + fulls de Sección 5 per a familiars
-  simultanis). Era la funció original del repo abans que entrés Mercurio.
-  Útil només si presentes en paper o vols arxiu local. *Possible amb això,
-  però no important.*
 - **`POST /gmail-draft` — proxy a Google Apps Script.** Crea un esborrany a
   Gmail amb el PDF adjunt. Existeix perquè GAS retorna 302 que el navegador
   no pot seguir; aquest endpoint fa la crida server-side.
@@ -113,12 +106,6 @@ d'Airtable via la integració nativa Tally → Airtable.
 A partir d'aquí, els voluntaris enriqueixen el cas dins d'Airtable (documents,
 situació familiar, factors de vulnerabilitat, etc.) i el Worker treballa sobre
 aquestes dades.
-
-> 💡 **Possible integració futura**: avui el flow Tally → Airtable usa la
-> integració nativa de Tally. Es podria moure a un webhook Tally → Worker per
-> validar/normalitzar dades a l'entrada, generar IDs de cas, o disparar
-> automàticament la creació d'una fila d'Informe de Vulnerabilitat. No és
-> prioritari ara mateix.
 
 ---
 

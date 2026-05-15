@@ -18,11 +18,15 @@ Tota la paperassa de regularització passa per quatre baules connectades:
   sense haver d'exposar Venus (la base d'Airtable) a persones sense
   preparació tècnica ni accés operatiu. El formulari de Tally escriu
   directament a Airtable.
+<img width="3308" height="1966" alt="image" src="https://github.com/user-attachments/assets/50ed81b4-6c2e-4484-adce-4ef0cab1f62d" />
+
 - **Venus (Airtable) actua com a core de dades.** És la font de veritat única:
   cada cas, document, factor de vulnerabilitat i relació familiar viu aquí.
 - **Venus genera l'informe de vulnerabilitat amb un clic** i, a la mateixa
   fila, prepara un esborrany de Gmail amb el PDF adjunt llest per enviar al
   usuari.
+<img width="3308" height="1254" alt="image" src="https://github.com/user-attachments/assets/ba8686ec-c308-42ac-bb36-fc207a09f987" />
+
 - **Un userscript de Tampermonkey automatitza la pujada de dades de Venus
   cap a Mercurio**, omplint els ~144 camps del formulari telemàtic EX-31/EX-32
   + pujada de arxius perquè el voluntari només hagi de revisar i signar amb AutoFirma.
@@ -32,6 +36,8 @@ Tally  →  Venus (Airtable)  ─┬─→  Informe de vulnerabilitat (PDF) + dr
                              ├─→  Dossier EX-31 / EX-32 (PDF)
                              └─→  Mercurio (auto-fill via Tampermonkey)
 ```
+<img width="3308" height="1254" alt="image" src="https://github.com/user-attachments/assets/ae4a64ce-80d9-48ca-95f8-09020b48aa45" />
+
 
 ---
 ### 🩺 Omplir informes de vulnerabilitat — en producció

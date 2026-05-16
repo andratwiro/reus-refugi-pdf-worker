@@ -1,22 +1,25 @@
 /**
- * Cloudflare Worker: PDF generation + Gmail draft proxy per al projecte
- * Reus Refugi.
+ * Cloudflare Worker: Annex II vulnerabilitat + Mercurio autofill + Gmail
+ * draft proxy per al projecte Reus Refugi.
  *
  * Rutes:
- *   POST /generate     — dossier EX-31 o EX-32 d'un cas (taula Casos)
- *   POST /anexo2       — certificat de vulnerabilitat (Informes de Vulnerabilitat)
- *   POST /gmail-draft  — proxy a Google Apps Script per crear drafts (evita el 302 de GAS)
+ *   POST /anexo2          — certificat de vulnerabilitat (Informes de Vulnerabilitat)
+ *   GET  /mercurio.user.js — userscript Tampermonkey
+ *   GET  /mercurio/cases   — cerca casos a Airtable
+ *   GET  /mercurio/payload — payload mapat per a un cas (EX-31/EX-32)
+ *   GET  /mercurio/documents + /mercurio/document — proxy d'adjunts cap a Mercurio
+ *   POST /optimize/dispatch — dispatch del workflow de compressió de PDFs
+ *   POST /gmail-draft      — proxy a Google Apps Script (evita el 302 de GAS)
  */
 
-import { AirtableClient, AirtableRecord } from "./airtable";
-import { fillSection5Page, getTemplateInfo, mergePdfWithInserts } from "./fillPdf";
+import { AirtableClient } from "./airtable";
 import { fillAnexo2Pdf, anexo2Filename } from "./anexo2";
-import { CASOS, ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
+import { ENTITAT_REUS_REFUGI_BASE, type EntitatConfig } from "./mappings";
 import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorConfig } from "./mercurio/mapping";
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
-import { mergeToPdf, UnsupportedFormatError, type MergeInput } from "./mercurio/mergeDocs";
+import { mergeToPdf, countPdfPages, UnsupportedFormatError, type MergeInput } from "./mercurio/mergeDocs";
 
-const USERSCRIPT_VERSION = "1.5.1";
+const USERSCRIPT_VERSION = "1.5.2";
 
 export interface Env {
   // Secrets
@@ -49,7 +52,6 @@ export interface Env {
   // Public vars (wrangler.toml)
   AIRTABLE_BASE_ID: string;
   CASOS_TABLE_ID: string;
-  DOSSIER_FIELD_ID: string;
   INFORMES_VULN_TABLE_ID: string;
   INFORMES_VULN_PDF_FIELD: string;
   INFORMES_VULN_GENERATED_AT_FIELD: string;
@@ -63,14 +65,6 @@ export interface Env {
   // keys no existeixen, el certificat A2 es genera sense aquells elements.
   // Vegeu src/private/README.md per a setup.
   PRIVATE_BINARIES?: KVNamespace;
-}
-
-interface GenerateRequest {
-  recordId: string;
-  baseId?: string;
-  /** Auth fallback per scripts d'Airtable que no poden enviar Authorization
-   *  header (preflight CORS bloquejat). Vegeu checkBodySecret. */
-  secret?: string;
 }
 
 interface Anexo2Request {
@@ -94,10 +88,6 @@ export default {
       return json({ ok: true, service: "reus-refugi-pdf-worker" });
     }
 
-    if (request.method === "POST" && url.pathname === "/generate") {
-      return handleGenerate(request, env);
-    }
-
     if (request.method === "POST" && url.pathname === "/anexo2") {
       return handleAnexo2(request, env);
     }
@@ -107,9 +97,9 @@ export default {
     }
 
     // ─── CORS preflight per a totes les rutes ──────────────────────
-    // Endpoints com /anexo2, /generate, /gmail-draft i /mercurio/* es
-    // criden des de contexts browser (Airtable Scripting Extensions,
-    // Mercurio userscript) que envien preflight OPTIONS abans del POST.
+    // Endpoints com /anexo2, /gmail-draft i /mercurio/* es criden des de
+    // contexts browser (Airtable Scripting Extensions, Mercurio userscript)
+    // que envien preflight OPTIONS abans del POST.
     if (request.method === "OPTIONS") {
       return corsPreflight(request);
     }
@@ -137,115 +127,6 @@ export default {
     return json({ error: "Not found" }, 404);
   },
 };
-
-// ─── /generate (existing) ───────────────────────────────────────────────────
-
-async function handleGenerate(request: Request, env: Env): Promise<Response> {
-  let body: GenerateRequest;
-  try {
-    body = (await request.json()) as GenerateRequest;
-  } catch {
-    return corsJson({ error: "Invalid JSON body" }, request, 400);
-  }
-  if (!checkAuth(request, env) && !checkBodySecret(body, env)) {
-    return unauthorized(corsHeaders(request));
-  }
-  if (!body.recordId || !body.recordId.startsWith("rec")) {
-    return corsJson({ error: "Missing or invalid recordId" }, request, 400);
-  }
-
-  const baseId = body.baseId || env.AIRTABLE_BASE_ID;
-  const tableId = env.CASOS_TABLE_ID;
-  const fieldId = env.DOSSIER_FIELD_ID;
-  const airtable = new AirtableClient(env.AIRTABLE_TOKEN, baseId);
-
-  const entitat = buildEntitat(env);
-  if (!entitat) {
-    return corsJson(
-      { error: "REPRESENTANT_* secrets not configured. See README → Setup." },
-      request,
-      500,
-    );
-  }
-
-  try {
-    const record = await airtable.getRecord(tableId, body.recordId);
-
-    const viaLegal = getStrFromField(record.fields, CASOS.viaLegal);
-    const { templateFile, section5TemplateFile, formCode, fill } =
-      getTemplateInfo(viaLegal);
-
-    const codi = getStrFromField(record.fields, CASOS.codi) || record.id;
-    const filename = `${codi}_${formCode}.pdf`;
-
-    const simultaneousIds = getSimultaneousApplicantIds(record);
-    const simultaneousMembers =
-      simultaneousIds.length > 0
-        ? await airtable.getRecords(tableId, simultaneousIds)
-        : [];
-
-    const firstDependent = simultaneousMembers[0];
-    const extraDependents = simultaneousMembers.slice(1);
-
-    const signatureBytes = await fetchSignaturePng(record);
-
-    const templateResp = await env.ASSETS.fetch(`https://placeholder/${templateFile}`);
-    if (!templateResp.ok) {
-      throw new Error(`Failed to load template ${templateFile}: ${templateResp.status}`);
-    }
-    const templateBytes = await templateResp.arrayBuffer();
-
-    let filledBytes = await fill(templateBytes, record, {
-      entitat,
-      firstDependent,
-      signatureBytes,
-    });
-
-    if (extraDependents.length > 0) {
-      const insertResp = await env.ASSETS.fetch(
-        `https://placeholder/${section5TemplateFile}`,
-      );
-      if (!insertResp.ok) {
-        throw new Error(
-          `Failed to load section 5 template ${section5TemplateFile}: ${insertResp.status}`,
-        );
-      }
-      const insertTemplateBytes = await insertResp.arrayBuffer();
-
-      const insertBytesList = await Promise.all(
-        extraDependents.map((m) =>
-          fillSection5Page(insertTemplateBytes, m, formCode),
-        ),
-      );
-      filledBytes = await mergePdfWithInserts(filledBytes, insertBytesList, 1);
-    }
-
-    await airtable.clearAttachmentField(tableId, body.recordId, fieldId);
-    await airtable.uploadAttachment({
-      recordId: body.recordId,
-      fieldIdOrName: fieldId,
-      filename,
-      contentType: "application/pdf",
-      bytes: filledBytes,
-    });
-
-    return corsJson({
-      ok: true,
-      recordId: body.recordId,
-      filename,
-      formCode,
-      viaLegal,
-      simultaneousApplicants: simultaneousMembers.length,
-      extraInserts: extraDependents.length,
-      signed: Boolean(signatureBytes),
-      sizeBytes: filledBytes.length,
-    }, request);
-  } catch (err) {
-    console.error("generate error:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return corsJson({ ok: false, error: message }, request, 500);
-  }
-}
 
 // ─── /anexo2 ────────────────────────────────────────────────────────────────
 
@@ -836,11 +717,25 @@ async function handleMercurioDocument(request: Request, env: Env): Promise<Respo
   const stem = sanitizeFilenameStem(refRaw) || `documento_${attId}`;
   const safeName = `${stem}.pdf`.replace(/[\\"]/g, "_");
 
+  // El userscript llegeix aquests headers per confirmar al voluntari que els
+  // N adjunts s'han fusionat en 1 PDF. Cal Access-Control-Expose-Headers
+  // perquè la resposta és cross-origin (workers.dev → gob.es) i sense això
+  // el browser amaga els headers no-safelisted a JS.
+  let mergedPages = 0;
+  try {
+    mergedPages = await countPdfPages(mergedBytes);
+  } catch {
+    /* el page count és informatiu — si falla, no bloquegem la descàrrega */
+  }
+
   return new Response(mergedBytes, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${safeName}"`,
+      "X-Merged-Count": String(attsTyped.length),
+      "X-Merged-Pages": String(mergedPages),
+      "Access-Control-Expose-Headers": "X-Merged-Count, X-Merged-Pages",
       ...corsHeaders(request),
     },
   });
@@ -992,50 +887,3 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-function getStrFromField(fields: Record<string, unknown>, fieldId: string): string {
-  const v = fields[fieldId];
-  if (v == null) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "object" && "name" in (v as object)) {
-    return String((v as { name: string }).name);
-  }
-  return String(v);
-}
-
-function getSimultaneousApplicantIds(record: AirtableRecord): string[] {
-  const f = record.fields;
-  const vinculats = f[CASOS.casosVinculats];
-  if (Array.isArray(vinculats) && vinculats.length > 0) {
-    return vinculats.filter((x): x is string => typeof x === "string");
-  }
-  const referent = f[CASOS.casReferent];
-  if (Array.isArray(referent) && referent.length > 0) {
-    return referent.filter((x): x is string => typeof x === "string");
-  }
-  return [];
-}
-
-async function fetchSignaturePng(
-  record: AirtableRecord,
-): Promise<Uint8Array | undefined> {
-  const attachments = record.fields[CASOS.firmaDigital];
-  if (!Array.isArray(attachments) || attachments.length === 0) {
-    return undefined;
-  }
-  const first = attachments[0] as { url?: string; type?: string };
-  if (!first || typeof first.url !== "string") {
-    return undefined;
-  }
-  try {
-    const resp = await fetch(first.url);
-    if (!resp.ok) {
-      console.error(`Signature fetch failed: ${resp.status} ${resp.statusText}`);
-      return undefined;
-    }
-    const buf = await resp.arrayBuffer();
-    return new Uint8Array(buf);
-  } catch (err) {
-    console.error("Signature fetch error:", err);
-    return undefined;
-  }
-}

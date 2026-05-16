@@ -1,7 +1,7 @@
 {
   "name": "reus-refugi-pdf-worker",
   "version": "0.1.0",
-  "description": "Cloudflare Worker that fills EX-32 PDFs from Airtable case data and uploads them back.",
+  "description": "Cloudflare Worker for Reus Refugi: generates Annex II vulnerability certificates and automates Mercurio EX-31/EX-32 submissions from Airtable case data.",
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",

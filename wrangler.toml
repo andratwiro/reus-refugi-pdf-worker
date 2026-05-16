@@ -10,16 +10,14 @@ compatibility_flags = ["nodejs_compat"]
 # Si volem >30s en algun moment, reactivar [limits] després de confirmar
 # que l'account està en paid plan.
 
-# Static assets — les plantilles PDF viuen dins del bundle del Worker.
-# Accessibles en runtime via env.ASSETS.fetch().
-#   - EX31_oficial.pdf, EX31_seccion5.pdf
-#   - EX32_oficial.pdf, EX32_seccion5.pdf
-#   - A2_certificado_vulnerabilidad.pdf      ← nou (Anexo II express)
+# Static assets — la plantilla PDF viu dins del bundle del Worker.
+# Accessible en runtime via env.ASSETS.fetch().
+#   - A2_certificado_vulnerabilidad.pdf
 #
 # IMPORTANT: tot el que viu a ./assets/ s'exposa públicament a la URL del
 # worker (https://reus-refugi-pdf-worker.workers.dev/<filename>). NO posis
-# aquí binaris que no siguin segurs de ser públics — els PDFs templates són
-# tots oficials del Govern espanyol, descarregables lliurement.
+# aquí binaris que no siguin segurs de ser públics — el PDF template és
+# oficial del Govern espanyol, descarregable lliurement.
 [assets]
 directory = "./assets"
 binding = "ASSETS"
@@ -68,9 +66,8 @@ enabled = true
 # Base Venus (mateixa base per Casos i Informes de Vulnerabilitat)
 AIRTABLE_BASE_ID = "appWuXncpGWaFTR4M"
 
-# Taula Casos (/generate)
+# Taula Casos (/mercurio/* la usa per llistar i carregar casos)
 CASOS_TABLE_ID = "tblaz9eNKzTI7YbM2"
-DOSSIER_FIELD_ID = "fldVBsux4CdQkELmg"
 
 # Taula Informes de Vulnerabilitat (/anexo2)
 INFORMES_VULN_TABLE_ID = "tblO0n6QksMeXLX3m"

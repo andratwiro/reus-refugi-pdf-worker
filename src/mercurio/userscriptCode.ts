@@ -628,6 +628,16 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         overflow-y: auto;
       }
       .venus-modal .venus-progress-detail-panel.open { display: block; }
+      .venus-modal .venus-merge-note {
+        margin-top: 4px;
+        padding: 8px 10px;
+        background: #F0EAFB;
+        border-radius: 6px;
+        font-size: 11px;
+        color: #4A3D63;
+        line-height: 1.6;
+      }
+      .venus-modal .venus-merge-note strong { color: #1A1424; font-weight: 600; }
 
       .venus-modal .venus-info-card {
         padding: 10px 12px;
@@ -936,7 +946,8 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   // Render progress block per al mode upload. Estructura idèntica al
   // renderProgress() del mode fill, però amb llabels "pujats / duplicats /
   // errors" i el detail panel mostra issues amb context (filename + raó).
-  function renderUploadProgress(statusDiv, ok, dup, issues) {
+  function renderUploadProgress(statusDiv, ok, dup, issues, merged) {
+    merged = merged || [];
     const total = ok + dup + issues.length;
     const segs = [];
     if (ok > 0)            segs.push(\`<div class="venus-progress-seg-ok" style="flex:\${ok}"></div>\`);
@@ -945,6 +956,14 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     const detailLink = issues.length
       ? '<button type="button" class="venus-progress-detail-link" id="venus-detail-link">Veure detall →</button>'
       : '';
+    let mergeBlock = '';
+    if (merged.length) {
+      const lines = merged.map(m =>
+        escapeHtml(String(m.label)) + ' — ' + m.attCount + ' fitxers → 1 PDF'
+        + (m.pages ? ' (' + m.pages + ' pàg.)' : '')
+      ).join('<br>');
+      mergeBlock = \`<div class="venus-merge-note"><strong>Fitxers fusionats en 1 PDF:</strong><br>\${lines}</div>\`;
+    }
     statusDiv.innerHTML = \`
       <div class="venus-progress-block">
         <div class="venus-progress-header">
@@ -957,6 +976,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
           <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-skip"></span><strong>\${dup}</strong> duplicats</span>
           <span class="venus-legend-item"><span class="venus-legend-dot venus-dot-err"></span><strong>\${issues.length}</strong> errors</span>
         </div>
+        \${mergeBlock}
         <div class="venus-progress-detail-panel" id="venus-detail-panel"></div>
       </div>
     \`;
@@ -1023,6 +1043,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
       // Descarrega bytes via Worker proxy (URL signada Airtable mai exposada al browser)
       let blob;
+      let mergedPages = 0;
       try {
         const dlResp = await fetch(WORKER_URL + '/mercurio/document?caso=' + encodeURIComponent(c.id) + '&attId=' + encodeURIComponent(doc.airtableId), {
           headers: { 'Authorization': 'Bearer ' + SHARED_SECRET },
@@ -1039,6 +1060,9 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
           continue;
         }
         blob = await dlResp.blob();
+        // El Worker fusiona els N adjunts d'un Document en 1 PDF i ho anuncia
+        // amb aquest header — ho mostrem al voluntari com a confirmació.
+        mergedPages = parseInt(dlResp.headers.get('X-Merged-Pages') || '0', 10) || 0;
       } catch (e) {
         results.push({ doc, status: 'download_error', filename: doc.filename, reason: String(e) });
         continue;
@@ -1079,7 +1103,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         const cont = document.getElementById('cont_tabla_datos_adj');
         if (cont) cont.innerHTML = html;
         alreadyUploaded.add(doc.filename.toLowerCase());
-        results.push({ doc, status: 'ok', filename: doc.filename, code: resolved.code });
+        results.push({ doc, status: 'ok', filename: doc.filename, code: resolved.code, attCount: doc.attCount || 1, mergedPages: mergedPages });
       } catch (e) {
         results.push({ doc, status: 'upload_error', filename: doc.filename, reason: String(e) });
       }
@@ -1092,9 +1116,14 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     const ok = results.filter(r => r.status === 'ok').length;
     const dup = results.filter(r => r.status === 'duplicate').length;
     const issues = results.filter(r => r.status !== 'ok' && r.status !== 'duplicate');
+    // Documents que el Worker ha fusionat (2+ adjunts → 1 PDF) — ho llistem
+    // perquè el voluntari confirmi que cap fitxer s'ha quedat fora.
+    const merged = results
+      .filter(r => r.status === 'ok' && (r.attCount || 1) > 1)
+      .map(r => ({ label: r.doc.mercurioCategory || r.doc.filename, attCount: r.attCount, pages: r.mergedPages }));
 
     setRowState(row, issues.length === 0 ? 'done' : 'error');
-    renderUploadProgress(statusDiv, ok, dup, issues);
+    renderUploadProgress(statusDiv, ok, dup, issues, merged);
     setFooterText(issues.length === 0 ? modeText('done') : footerError(issues.length));
     console.log('[Venus] upload results:', results);
   }

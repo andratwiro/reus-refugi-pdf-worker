@@ -92,3 +92,9 @@ export async function mergeToPdf(inputs: MergeInput[]): Promise<Uint8Array> {
 
   return await merged.save();
 }
+
+/** Compta les pàgines d'un PDF ja generat (per surfaçar-ho al voluntari). */
+export async function countPdfPages(bytes: Uint8Array): Promise<number> {
+  const d = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  return d.getPageCount();
+}

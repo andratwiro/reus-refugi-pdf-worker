@@ -192,6 +192,15 @@ function normalitzaPis(s: string | undefined): string {
   return aliases[upper] ?? v; // si no reconeixem, deixem al userscript que reporti invalid_option
 }
 
+/** Normalitza mòbil: treu tot el no-dígit i el prefix de país (+34 / 0034).
+ *  Mercurio espera el número espanyol de 9 dígits sense indicatiu. */
+function normalitzaTelefon(raw: string | undefined): string {
+  let d = String(raw ?? '').replace(/\D/g, '');
+  if (d.length === 13 && d.startsWith('0034')) d = d.slice(4);
+  else if (d.length === 11 && d.startsWith('34')) d = d.slice(2);
+  return d;
+}
+
 /** ISO date "1986-08-15" → "15/08/1986" */
 function isoToEs(iso: string | undefined): string {
   if (!iso) return '';
@@ -426,7 +435,7 @@ export function airtableToMercurio(
       : '000000',
     extCodigoPostal: fStr(rec, 'CP'),
     extTelefono: '',
-    extTelefonoMovil: fStr(rec, 'Telèfon').replace(/\D/g, ''),
+    extTelefonoMovil: normalitzaTelefon(fStr(rec, 'Telèfon')),
     extEmail: normalizeEmail(fStr(rec, 'Email')),
     // Bloc "REPRESENTANTE LEGAL, EN SU CASO" — només s'omple per a menors,
     // amb les dades del Referent familiar (pare/mare/tutor).
@@ -526,7 +535,11 @@ function buildReagrupante(refRec: AirtableCase): Record<string, string> {
     reaHectometroReagrupante: f('Hm'),
     reaCodigoProvinciaReagrupante: '43',
     reaCodigoMunicipioReagrupante: extractCode(f('Municipi Mercurio')),
-    reaCodigoLocalidadReagrupante: f('Localitat Mercurio') || '000000',
+    // Mateix guard que extCodigoLocalidad: si el voluntari hi escriu text
+    // ('TARRAGONA') en lloc del codi de 6 dígits, fallback al codi central.
+    reaCodigoLocalidadReagrupante: /^\d{6}$/.test(f('Localitat Mercurio'))
+      ? f('Localitat Mercurio')
+      : '000000',
     reaCodigoPostalReagrupante: f('CP'),
   };
 }

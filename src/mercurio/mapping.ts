@@ -94,6 +94,37 @@ const VIA_LEGAL_MAP: Record<string, {
   },
 };
 
+/**
+ * Supuesto "Hijo menor (no) nacido en España" per a sol·licitants menors d'edat.
+ *
+ * Mercurio el tracta com un supuesto propi DINS de cada formulari — NO canvia
+ * el form (EX31/EX32), que el marca la via legal de la família. Quan el cas és
+ * menor, aquest supuesto sobreescriu el que dictaria "Via legal".
+ *
+ * Codis confirmats per inspecció DOM (2026-05-16): menorsmercuri31.html
+ * (EX-31-1-02/03) i menorsmercuri32.html (EX-32-1-04/05).
+ *
+ * viaAccesoNew/tipoPermisoNew: a EX-32 l'atribut `viasup`/`permisosup` del radio
+ * coincideix amb el valor real (confirmat: ARL/AUF/ASV a les vies adultes). A
+ * EX-31 `viasup` NO coincideix (EX-31-1-01 porta viasup=SPI però el valor real
+ * és PRI), així que els d'EX-31 són una estimació — confirmar al primer submit.
+ */
+const MENOR_SUPUESTO: Record<'EX31' | 'EX32', Record<'nacido' | 'noNacido', {
+  viaAccesoNew: string;
+  tipoPermisoNew: string;
+  idOpcionAutorizacion: string;
+  codOpcionAutorizacion: string;
+}>> = {
+  EX31: {
+    nacido:   { viaAccesoNew: 'HNP', tipoPermisoNew: 'RMH', idOpcionAutorizacion: '285', codOpcionAutorizacion: 'EX-31-1-02' },
+    noNacido: { viaAccesoNew: 'NNP', tipoPermisoNew: 'RMH', idOpcionAutorizacion: '286', codOpcionAutorizacion: 'EX-31-1-03' },
+  },
+  EX32: {
+    nacido:   { viaAccesoNew: 'HNA', tipoPermisoNew: 'RMH', idOpcionAutorizacion: '295', codOpcionAutorizacion: 'EX-32-1-04' },
+    noNacido: { viaAccesoNew: 'NNA', tipoPermisoNew: 'RMH', idOpcionAutorizacion: '296', codOpcionAutorizacion: 'EX-32-1-05' },
+  },
+};
+
 export { FORM_DES };
 
 /** Sexe Airtable "H (home)" → Mercurio code (codis confirmats del select del form):
@@ -233,7 +264,9 @@ function fStr(rec: AirtableCase, name: string): string {
  *
  * @param rec       Cas Airtable principal (sol·licitant)
  * @param presentador Configuració del presentador (entitat + voluntari)
- * @param refRec    Cas referent (només per dependents — DA 21ª Familiar). Omitir si no aplica.
+ * @param refRec    Cas referent: dependents (DA 21ª Familiar) i menors d'edat
+ *                  (el pare/mare/tutor que ha sol·licitat prèviament). Omitir
+ *                  si no aplica.
  */
 export function airtableToMercurio(
   rec: AirtableCase,
@@ -271,6 +304,20 @@ export function airtableToMercurio(
   const formulario = viaCfg.formulario;
   const isEX32 = formulario === 'EX32';
 
+  // ─── Menor d'edat ───────────────────────────────────────
+  // Si el sol·licitant és menor, el supuesto passa a "Hijo menor (no) nacido
+  // en España" del MATEIX formulari (el form el segueix marcant "Via legal").
+  // La distinció nacido/no-nacido surt del país de naixement (ESPAÑA = 109).
+  const isMenor = rec.fields["Menor d'edat"] === true;
+  const nacidoEnEspana = extractCode(fStr(rec, 'País naixement')) === '109';
+  const menorCfg = isMenor
+    ? MENOR_SUPUESTO[formulario][nacidoEnEspana ? 'nacido' : 'noNacido']
+    : null;
+  const viaAccesoNew = menorCfg?.viaAccesoNew ?? viaCfg.viaAccesoNew;
+  const tipoPermisoNew = menorCfg?.tipoPermisoNew ?? viaCfg.tipoPermisoNew;
+  const idOpcionAutorizacion = menorCfg?.idOpcionAutorizacion ?? viaCfg.idOpcionAutorizacion;
+  const codOpcionAutorizacion = menorCfg?.codOpcionAutorizacion ?? viaCfg.codOpcionAutorizacion;
+
   return {
     // ─── Header / form metadata ────────────────────────────
     tipoSolicitud: 'INI',
@@ -286,8 +333,8 @@ export function airtableToMercurio(
     fechaCaducidad: '',
     fechaCaducidadExpCaduca: '',
     viaAccesoOld: '',
-    viaAccesoNew: viaCfg.viaAccesoNew,
-    tipoPermisoNew: viaCfg.tipoPermisoNew,
+    viaAccesoNew,
+    tipoPermisoNew,
     codigoMeyss: '',
     tipoPermisoOld: '',
     idGesDocum: '',
@@ -309,9 +356,9 @@ export function airtableToMercurio(
     acompante: '',
     acompananteDocumento: '',
     acompananteTitulo: '',
-    idOpcionAutorizacion: viaCfg.idOpcionAutorizacion,
-    codOpcionAutorizacion: viaCfg.codOpcionAutorizacion,
-    datosForAut: viaCfg.idOpcionAutorizacion,
+    idOpcionAutorizacion,
+    codOpcionAutorizacion,
+    datosForAut: idOpcionAutorizacion,
     // Camp dinàmic — només apareix al DOM si datosForAut=284 (DA 20ª PI).
     // Es resol via Phase 1 del userscript (datosForAut + 400ms wait abans
     // d'iterar la resta de camps). Per casos no-PI (DA 21ª*), Mercurio NO
@@ -381,10 +428,16 @@ export function airtableToMercurio(
     extTelefono: '',
     extTelefonoMovil: fStr(rec, 'Telèfon').replace(/\D/g, ''),
     extEmail: normalizeEmail(fStr(rec, 'Email')),
-    extNombreRepresentante: '',
-    extTipodocumentoRepresentante: 'NF',
-    extNieRepresentante: '',
-    extTituloRepresentante: '',
+    // Bloc "REPRESENTANTE LEGAL, EN SU CASO" — només s'omple per a menors,
+    // amb les dades del Referent familiar (pare/mare/tutor).
+    ...(isMenor && refRec
+      ? buildRepresentanteLegal(refRec, fStr(rec, 'Parentiu amb referent'))
+      : {
+          extNombreRepresentante: '',
+          extTipodocumentoRepresentante: 'NF',
+          extNieRepresentante: '',
+          extTituloRepresentante: '',
+        }),
     extVinculoRepresentante: '',
 
     // ─── Reagrupante (cas referent) ─────────────────────────
@@ -475,6 +528,36 @@ function buildReagrupante(refRec: AirtableCase): Record<string, string> {
     reaCodigoMunicipioReagrupante: extractCode(f('Municipi Mercurio')),
     reaCodigoLocalidadReagrupante: f('Localitat Mercurio') || '000000',
     reaCodigoPostalReagrupante: f('CP'),
+  };
+}
+
+/**
+ * Bloc "REPRESENTANTE LEGAL, EN SU CASO" — obligatori quan el sol·licitant és
+ * menor. El representant legal és el pare/mare/tutor, és a dir el cas enllaçat
+ * a "Referent familiar". El títol (PADRE/MADRE) es deriva del sexe del referent
+ * quan el parentiu és Fill/a; en qualsevol altre cas, TUTOR.
+ */
+function buildRepresentanteLegal(refRec: AirtableCase, parentiu: string): Record<string, string> {
+  const g = (n: string): string => {
+    const v = refRec.fields[`${n} (Mercurio)`] ?? refRec.fields[n] ?? '';
+    return typeof v === 'string' ? v.trim() : '';
+  };
+  const nie = g('NIE');
+  const pasaporte = g('Núm. passaport');
+  const sexe = g('Sexe');
+  let titulo = 'TUTOR';
+  if (parentiu === 'Fill/a') {
+    if (sexe.startsWith('M')) titulo = 'MADRE';
+    else if (sexe.startsWith('H')) titulo = 'PADRE';
+  }
+  const nombre = [g('1r cognom'), g('2n cognom'), g('Nom')]
+    .filter(Boolean).join(' ').toUpperCase();
+  return {
+    extNombreRepresentante: nombre,
+    // NF=DNI, TU=NIE, PA=Pasaporte. El referent normalment encara no té NIE.
+    extTipodocumentoRepresentante: nie ? 'TU' : 'PA',
+    extNieRepresentante: nie || pasaporte,
+    extTituloRepresentante: titulo,
   };
 }
 

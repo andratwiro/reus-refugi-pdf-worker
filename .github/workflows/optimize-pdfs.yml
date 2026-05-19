@@ -2,13 +2,12 @@ name: Optimize Airtable PDFs
 
 # Comprimeix els PDFs grans pujats a la taula Documents d'Airtable.
 #
-# TRIGGER NOMÉS MANUAL — l'script (scripts/optimize-airtable-pdfs.ts) és
-# idempotent, però els voluntaris fan tasques en finestres curtes (30-40min,
-# 1-2 cops/setmana) i no cal cron 24/7. Quan calgui:
-#   1. Pestanya "Actions" del repo → "Optimize Airtable PDFs" → "Run workflow"
-#   2. O via gh CLI: `gh workflow run optimize-pdfs.yml`
-#   3. O via curl: POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/optimize-pdfs.yml/dispatches
-# Triga ~3 min en acabar. Salta PDFs ja optimitzats automàticament.
+# TRIGGER: normalment automàtic — l'endpoint /optimize/dispatch del Worker
+# el dispara quan una Airtable Automation detecta un fitxer nou a Documents.
+# Si el dispatch porta un `record`, optimitza NOMÉS aquell record (triga
+# segons); si no, optimitza tota la taula. També es pot llançar a mà:
+#   - Actions → "Optimize Airtable PDFs" → "Run workflow" (camp record opcional)
+#   - gh CLI:  gh workflow run optimize-pdfs.yml -f record=recXXXXXXXXXXXXXX
 #
 # COST: $0. Repos públics tenen Actions gratuïts sense límit.
 #
@@ -18,11 +17,18 @@ name: Optimize Airtable PDFs
 
 on:
   workflow_dispatch:
+    inputs:
+      record:
+        description: "Documents record id (recXXX) a optimitzar. Buit = tota la taula."
+        required: false
+        default: ""
 
-# Evita runs concurrents — si dispares dues vegades seguides, el segon espera
-# que el primer acabi (no es cancel·la per evitar deixar attachments mig-buits).
+# Concurrency per record: runs de records diferents corren en paral·lel
+# (cap thrashing en bursts d'uploads); dos runs del MATEIX record s'encuen
+# (l'script és idempotent, el segon no troba res a fer). Els runs de tota
+# la taula comparteixen el grup "all".
 concurrency:
-  group: optimize-pdfs
+  group: optimize-pdfs-${{ github.event.inputs.record || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -53,4 +59,12 @@ jobs:
       - name: Run optimization
         env:
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
-        run: npx tsx scripts/optimize-airtable-pdfs.ts --apply
+          OPT_RECORD: ${{ github.event.inputs.record }}
+        run: |
+          if [ -n "$OPT_RECORD" ]; then
+            echo "Optimitzant només el record $OPT_RECORD"
+            npx tsx scripts/optimize-airtable-pdfs.ts --apply --record="$OPT_RECORD"
+          else
+            echo "Optimitzant tota la taula Documents"
+            npx tsx scripts/optimize-airtable-pdfs.ts --apply
+          fi

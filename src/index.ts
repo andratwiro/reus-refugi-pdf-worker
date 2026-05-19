@@ -754,10 +754,11 @@ async function handleMercurioDocument(request: Request, env: Env): Promise<Respo
 //             URL    = https://<worker>/optimize/dispatch
 //             Method = POST
 //             Header = Authorization: Bearer <SHARED_SECRET>
-//             Body   = (qualsevol cosa, no es parseja)
+//             Body   = {"recordId": "<record id del trigger>"}
 //
-// El workflow té concurrency=1, així que múltiples dispatches en burst
-// s'encuen i el segon no troba res a fer (idempotència de l'script).
+// Si el body porta un recordId vàlid, el workflow optimitza NOMÉS aquell
+// record (triga segons) — així els bursts d'uploads no es maten entre ells.
+// Si el body és buit o sense id, fallback a optimitzar tota la taula.
 //
 // Setup PAT GitHub:
 //   1. Crear fine-grained PAT a https://github.com/settings/tokens?type=beta
@@ -781,6 +782,18 @@ async function handleOptimizeDispatch(request: Request, env: Env): Promise<Respo
     );
   }
 
+  // Opcional: record id que ha disparat el trigger d'Airtable. Si és vàlid,
+  // el workflow optimitza només aquell record; si no, optimitza tota la
+  // taula (fallback retrocompatible si l'Automation no l'envia).
+  let record = "";
+  try {
+    const body = (await request.json()) as { recordId?: string; record?: string };
+    const candidate = String(body?.recordId ?? body?.record ?? "");
+    if (/^rec[A-Za-z0-9]{14}$/.test(candidate)) record = candidate;
+  } catch {
+    /* body buit o no-JSON — fallback a tota la taula */
+  }
+
   try {
     const resp = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`,
@@ -794,7 +807,7 @@ async function handleOptimizeDispatch(request: Request, env: Env): Promise<Respo
           "User-Agent": "reus-refugi-pdf-worker",
           "X-GitHub-Api-Version": "2022-11-28",
         },
-        body: JSON.stringify({ ref: "main" }),
+        body: JSON.stringify({ ref: "main", inputs: { record } }),
       },
     );
 
@@ -808,7 +821,10 @@ async function handleOptimizeDispatch(request: Request, env: Env): Promise<Respo
       );
     }
     // GitHub respon 204 sense body en èxit.
-    return corsJson({ ok: true, dispatched: workflow, owner, repo }, request);
+    return corsJson(
+      { ok: true, dispatched: workflow, owner, repo, record: record || "(tota la taula)" },
+      request,
+    );
   } catch (err) {
     console.error("optimize/dispatch error:", err);
     const message = err instanceof Error ? err.message : String(err);

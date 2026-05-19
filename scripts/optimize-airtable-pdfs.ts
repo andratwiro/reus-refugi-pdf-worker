@@ -18,6 +18,9 @@
  * OPCIONS:
  *   --apply              Sobreescriu els originals (default: dry-run)
  *   --threshold-mb=1.0   Mida mínima per processar (default 1MB)
+ *   --target-mb=5        Si la compressió no hi entra, escala density/quality
+ *                        fins baixar-hi (default 5MB — marge sota els 6MB
+ *                        de Mercurio)
  *   --min-reduction=10   % mínim de reducció per re-pujar (default 10)
  *   --limit=N            Processa només els primers N candidats (debug)
  *   --record=recXXX      Processa només aquest record id (debug)
@@ -52,6 +55,10 @@ const THRESHOLD_MB = parseFloat(argVal("threshold-mb", "1.0"));
 const MIN_REDUCTION_PCT = parseFloat(argVal("min-reduction", "10"));
 const LIMIT = parseInt(argVal("limit", "0"), 10) || Infinity;
 const SINGLE_RECORD = argVal("record", "");
+// Objectiu de mida: si la 1a passada de compressió no hi entra, s'escala a
+// density/quality més baixos fins a aconseguir-ho. 5MB deixa marge sota el
+// límit de 6MB/fitxer de Mercurio.
+const TARGET_MB = parseFloat(argVal("target-mb", "5"));
 
 if (!TOKEN || TOKEN === "patFAKE_local_test_only") {
   console.error("❌ AIRTABLE_TOKEN missing or fake.");
@@ -167,39 +174,32 @@ async function uploadAttachment(
 }
 
 /**
- * Provem dues estratègies i triem la que redueix més:
+ * Comprimeix un PDF i retorna la variant més petita. Dues estratègies:
  *
- *  A) ImageMagick rasteritzat (120dpi · JPEG q60)
- *     Brutal per a scans 300dpi (els passaports d'iR-ADV típics: 9.7MB→1.3MB).
- *     Però infla PDFs amb text vectorial pur (no rasteritza eficientment),
- *     així que cal comparar abans d'aplicar.
+ *  A) ImageMagick rasteritzat — ESCALAT. Comença suau (120dpi/q60) i, si el
+ *     resultat encara passa de `targetBytes`, baixa density+quality per
+ *     nivells (100/q50 → 90/q42 → 72/q35) fins que hi entri o s'esgotin.
+ *     Brutal per a scans 300dpi (passaports típics: 25MB→2.9MB).
  *
- *  B) Ghostscript /ebook (150dpi · downsampling automàtic)
- *     Conserva text vectorial, comprimeix imatges. Útil per PDFs híbrids
- *     (text + scan). Estalvi modest (10-30%).
+ *  B) Ghostscript /ebook — conserva text vectorial, comprimeix imatges.
+ *     Útil per PDFs híbrids (text + scan). Estalvi modest (10-30%).
  *
- * El millor de A i B es retorna; si cap baixa del threshold, retornem null.
+ * Es retorna la variant més petita de totes les provades; null si cap
+ * compressor ha funcionat.
  */
-function compressBest(inPath: string, baseOutPath: string): { bytes: Buffer; method: string } | null {
+function compressBest(
+  inPath: string,
+  baseOutPath: string,
+  targetBytes: number,
+): { bytes: Buffer; method: string } | null {
   const candidates: Array<{ bytes: Buffer; method: string }> = [];
 
-  // Timeouts agressius — alguns PDFs corruptes o massa grans poden penjar
-  // magick/gs indefinidament. 60s és més que suficient per a 50MB.
-  const EXEC_OPTS = { stdio: "pipe" as const, timeout: 60_000, killSignal: "SIGKILL" as const };
+  // Timeout generós — escanejos molt grans (50MB+) amb diverses passades de
+  // magick poden trigar. El workflow té timeout-minutes:15 de marge.
+  const EXEC_OPTS = { stdio: "pipe" as const, timeout: 120_000, killSignal: "SIGKILL" as const };
 
-  // A) ImageMagick rasteritzat (si està disponible)
-  if (MAGICK_CMD) {
-    try {
-      const aPath = baseOutPath + ".magick.pdf";
-      execSync(
-        `${MAGICK_CMD} -density 120 "${inPath}" -compress jpeg -quality 60 "${aPath}"`,
-        EXEC_OPTS,
-      );
-      candidates.push({ bytes: readFileSync(aPath), method: `${MAGICK_CMD}:120dpi/q60` });
-    } catch (e) {
-      // Pot fallar per policy.xml d'Ubuntu (PDF blocked per CVE 2018) o PDFs corruptes.
-    }
-  }
+  const smallest = () =>
+    candidates.reduce((a, b) => (b.bytes.length < a.bytes.length ? b : a));
 
   // B) Ghostscript /ebook
   try {
@@ -215,8 +215,26 @@ function compressBest(inPath: string, baseOutPath: string): { bytes: Buffer; met
     // ignore
   }
 
+  // A) ImageMagick rasteritzat, escalat. Parem tan bon punt una variant
+  // entra dins el target — no cal degradar més la qualitat del necessari.
+  if (MAGICK_CMD) {
+    const TIERS: Array<[number, number]> = [[120, 60], [100, 50], [90, 42], [72, 35]];
+    for (const [density, quality] of TIERS) {
+      try {
+        const aPath = `${baseOutPath}.magick-${density}-${quality}.pdf`;
+        execSync(
+          `${MAGICK_CMD} -density ${density} "${inPath}" -compress jpeg -quality ${quality} "${aPath}"`,
+          EXEC_OPTS,
+        );
+        candidates.push({ bytes: readFileSync(aPath), method: `${MAGICK_CMD}:${density}dpi/q${quality}` });
+      } catch (e) {
+        // Pot fallar per policy.xml d'Ubuntu (PDF blocked per CVE 2018) o PDFs corruptes.
+      }
+      if (candidates.length > 0 && smallest().bytes.length <= targetBytes) break;
+    }
+  }
+
   if (candidates.length === 0) return null;
-  // Tria el més petit
   candidates.sort((a, b) => a.bytes.length - b.bytes.length);
   return candidates[0];
 }
@@ -224,7 +242,7 @@ function compressBest(inPath: string, baseOutPath: string): { bytes: Buffer; met
 // ─── Main ────────────────────────────────────────────────────────────
 async function main() {
   console.log(
-    `\n📄 Optimize Airtable PDFs · ${APPLY ? "APPLY" : "DRY-RUN"} · threshold ${THRESHOLD_MB}MB · min-reduction ${MIN_REDUCTION_PCT}%\n`,
+    `\n📄 Optimize Airtable PDFs · ${APPLY ? "APPLY" : "DRY-RUN"} · threshold ${THRESHOLD_MB}MB · target ${TARGET_MB}MB · min-reduction ${MIN_REDUCTION_PCT}%\n`,
   );
 
   console.log(`📚 Llegint records de Documents…`);
@@ -284,7 +302,7 @@ async function main() {
       const outPath = join(tmpDir, r.id + ".opt.pdf");
       writeFileSync(inPath, inBuf);
 
-      const best = compressBest(inPath, outPath);
+      const best = compressBest(inPath, outPath, TARGET_MB * 1e6);
       if (!best) {
         console.log(`\x1b[31mERROR\x1b[0m no compressors available`);
         continue;
@@ -304,8 +322,10 @@ async function main() {
         continue;
       }
 
+      const overTarget = best.bytes.length > TARGET_MB * 1e6;
       console.log(
-        `\x1b[32m${bytes(best.bytes.length).padStart(7)}\x1b[0m  -${reductionPct.toFixed(0)}%  ${best.method}`,
+        `\x1b[32m${bytes(best.bytes.length).padStart(7)}\x1b[0m  -${reductionPct.toFixed(0)}%  ${best.method}` +
+          (overTarget ? `  \x1b[33m⚠ encara > ${TARGET_MB}MB\x1b[0m` : ""),
       );
       toApply.push({
         record: r,

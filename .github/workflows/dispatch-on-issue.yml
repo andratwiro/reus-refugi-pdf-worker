@@ -6,9 +6,12 @@ name: Dispatch optimize-pdfs from issue
 #
 # Així:
 #   1. Airtable Automation crea un issue amb títol "Compress trigger"
-#      quan es puja un PDF a la taula Documents
+#      quan es puja un fitxer a la taula Documents. El COS de l'issue
+#      conté l'Airtable record id del Document (recXXXXXXXXXXXXXX).
 #   2. Aquest workflow escolta `issues.opened`, filtra pel títol,
-#      dispara optimize-pdfs.yml, i tanca l'issue amb un comentari
+#      extreu el record id del cos i dispara optimize-pdfs.yml NOMÉS
+#      per aquell record (ràpid). Si el cos no en porta cap, fallback
+#      a optimitzar tota la taula. Després tanca l'issue amb un comentari.
 #
 # El secret GITHUB_TOKEN built-in de GitHub Actions ja té els permisos
 # necessaris (declarats al `permissions:` block de sota), no cal PAT.
@@ -37,8 +40,18 @@ jobs:
       - name: Trigger optimize-pdfs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Via env var — mai interpolat directament al shell (injection).
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          gh workflow run optimize-pdfs.yml --repo "${{ github.repository }}"
+          # Extreu el primer record id (rec + 14 alfanumèrics) del cos.
+          RECORD=$(printf '%s' "$ISSUE_BODY" | grep -oE 'rec[A-Za-z0-9]{14}' | head -1 || true)
+          if [ -n "$RECORD" ]; then
+            echo "Dispatch per-record: $RECORD"
+            gh workflow run optimize-pdfs.yml --repo "${{ github.repository }}" -f record="$RECORD"
+          else
+            echo "Cap record id al cos de l'issue — dispatch de tota la taula"
+            gh workflow run optimize-pdfs.yml --repo "${{ github.repository }}"
+          fi
 
       - name: Close issue
         env:

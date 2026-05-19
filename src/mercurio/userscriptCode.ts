@@ -45,6 +45,14 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   const WORKER_URL = '__WORKER_URL__';
   const SHARED_SECRET = '__SHARED_SECRET__';
 
+  // ─── Límits de mida de Mercurio ─────────────────────────────────────
+  // Mercurio rebutja amb un HTTP 500 opac els fitxers grans (límit declarat
+  // 6 MB/fitxer, ~15 MB/expedient). Gate dur: comprovem la mida real del
+  // blob abans d'enviar res — el voluntari rep un missatge clar en lloc
+  // d'un 500 misteriós, i mai s'envia un fitxer que Mercurio rebutjaria.
+  const MAX_DOC_BYTES = 6 * 1024 * 1024;
+  const MAX_CASE_BYTES = 15 * 1024 * 1024;
+
   // ─── Skip lists ─────────────────────────────────────────────────────
   const CASCADE_FIELDS = new Set([
     'extCodigoProvincia', 'extCodigoMunicipio', 'extCodigoLocalidad',
@@ -1024,6 +1032,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
     const alreadyUploaded = readUploadedFilenames();
     const results = [];
+    let caseBytes = 0; // bytes ja pujats correctament — per al gate de total/expedient
 
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
@@ -1068,6 +1077,24 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         continue;
       }
 
+      // ── Gate dur de mida (Fase 1) ───────────────────────────────────
+      // blob.size són els bytes reals que s'enviarien (ja fusionats si el
+      // Document tenia múltiples adjunts). Bloquegem aquí — mai a Mercurio.
+      if (blob.size > MAX_DOC_BYTES) {
+        results.push({
+          doc, status: 'oversize', filename: doc.filename,
+          reason: fmtMB(blob.size) + ' · màxim ' + fmtMB(MAX_DOC_BYTES) + '. S\\'està optimitzant automàticament — reintenta d\\'aquí uns minuts.',
+        });
+        continue;
+      }
+      if (caseBytes + blob.size > MAX_CASE_BYTES) {
+        results.push({
+          doc, status: 'oversize', filename: doc.filename,
+          reason: 'el total del cas superaria ' + fmtMB(MAX_CASE_BYTES) + ' (límit de Mercurio per expedient). Cal comprimir o reduir documents.',
+        });
+        continue;
+      }
+
       // POST multipart a Mercurio. Mateix host (path relatiu) — així viatgen
       // les cookies de sessió del voluntari (JSESSIONID, TSPD/F5 anti-bot).
       try {
@@ -1103,6 +1130,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         const cont = document.getElementById('cont_tabla_datos_adj');
         if (cont) cont.innerHTML = html;
         alreadyUploaded.add(doc.filename.toLowerCase());
+        caseBytes += blob.size;
         results.push({ doc, status: 'ok', filename: doc.filename, code: resolved.code, attCount: doc.attCount || 1, mergedPages: mergedPages });
       } catch (e) {
         results.push({ doc, status: 'upload_error', filename: doc.filename, reason: String(e) });
@@ -1198,6 +1226,9 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   function escapeHtml(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+  // Mida llegible en MB amb coma decimal (català), p.ex. "25,5 MB".
+  function fmtMB(bytes) { return (bytes / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB'; }
 
   // ─── Boot ───────────────────────────────────────────────────────────
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectPanel);

@@ -81,7 +81,7 @@ interface GmailDraftRequest {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/") {
@@ -115,7 +115,7 @@ export default {
       return handleMercurioPayload(request, env);
     }
     if (request.method === "GET" && url.pathname === "/mercurio/documents") {
-      return handleMercurioDocuments(request, env);
+      return handleMercurioDocuments(request, env, ctx);
     }
     if (request.method === "GET" && url.pathname === "/mercurio/document") {
       return handleMercurioDocument(request, env);
@@ -480,6 +480,10 @@ const DOCS_ATTACHMENT_FIELD = "Fitxer";
 const DOCS_TYPE_FIELD = "Mercurio tipus document";
 const DOCS_REFERENCE_FIELD = "Referència";
 
+// Límit de Mercurio per fitxer. Documents per sobre disparen una re-optimització
+// automàtica (Fase 3) quan el userscript carrega el cas.
+const MERCURIO_MAX_DOC_BYTES = 6 * 1024 * 1024;
+
 // Sanitize filename per Mercurio (i per Content-Disposition). Mercurio valida
 // per extensió, no accepta path separators ni cometes als noms.
 function sanitizeFilenameStem(s: string): string {
@@ -510,7 +514,11 @@ interface AirtableAttachment {
  * Airtable expiren ~2h i una sessió Mercurio pot trigar més; a més centralitzem
  * audit logs al Worker.
  */
-async function handleMercurioDocuments(request: Request, env: Env): Promise<Response> {
+async function handleMercurioDocuments(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
   const url = new URL(request.url);
   const caso = url.searchParams.get("caso");
@@ -591,6 +599,22 @@ async function handleMercurioDocuments(request: Request, env: Env): Promise<Resp
       // validació security al GET /mercurio/document.
       downloadUrl: `${baseUrl}/mercurio/document?caso=${encodeURIComponent(caso)}&attId=${encodeURIComponent(d.id)}`,
     });
+  }
+
+  // Fase 3 — auto-curació: si algun document supera el límit de Mercurio,
+  // re-disparem l'optimització d'aquell record en background (ctx.waitUntil,
+  // sense afegir latència a la resposta). Cobreix el cas que l'Airtable
+  // Automation s'hagués perdut el trigger d'upload — només obrir el cas al
+  // userscript ja reactiva la compressió.
+  const oversize = documents.filter((d) => d.sizeBytes > MERCURIO_MAX_DOC_BYTES);
+  if (oversize.length > 0) {
+    console.log(
+      `caso ${caso}: ${oversize.length} document(s) oversize — re-dispatch optimització:`,
+      oversize.map((d) => d.airtableId).join(", "),
+    );
+    ctx.waitUntil(
+      Promise.all(oversize.map((d) => dispatchOptimizeWorkflow(env, d.airtableId))),
+    );
   }
 
   return corsJson({ caso, idCas, documents }, request);
@@ -766,15 +790,54 @@ async function handleMercurioDocument(request: Request, env: Env): Promise<Respo
 //   2. `npx wrangler secret put GITHUB_TOKEN`
 //   3. Editar wrangler.toml [vars] amb GITHUB_OWNER + GITHUB_REPO
 //      (o passar com a env al deploy).
-async function handleOptimizeDispatch(request: Request, env: Env): Promise<Response> {
-  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
-
-  const ghToken = env.GITHUB_TOKEN;
+/**
+ * Dispara el workflow optimize-pdfs.yml a GitHub Actions. Si `record` és un
+ * record id vàlid, el workflow optimitza només aquell; si és buit, tota la
+ * taula. No llença mai — retorna {ok} — perquè es crida tant des de
+ * l'endpoint com en background (ctx.waitUntil), on un throw quedaria orfe.
+ */
+async function dispatchOptimizeWorkflow(
+  env: Env,
+  record: string,
+): Promise<{ ok: boolean; status?: number; error?: string }> {
+  if (!env.GITHUB_TOKEN) return { ok: false, error: "GITHUB_TOKEN not configured" };
   const owner = env.GITHUB_OWNER ?? "andratwiro";
   const repo = env.GITHUB_REPO ?? "reus-refugi-pdf-worker";
   const workflow = "optimize-pdfs.yml";
+  try {
+    const resp = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          // GitHub API requereix User-Agent.
+          "User-Agent": "reus-refugi-pdf-worker",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({ ref: "main", inputs: { record } }),
+      },
+    );
+    if (!resp.ok) {
+      const body = await resp.text();
+      console.error(`GitHub dispatch failed ${resp.status}:`, body);
+      return { ok: false, status: resp.status, error: body.slice(0, 300) };
+    }
+    // GitHub respon 204 sense body en èxit.
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("optimize dispatch error:", err);
+    return { ok: false, error: message };
+  }
+}
 
-  if (!ghToken) {
+async function handleOptimizeDispatch(request: Request, env: Env): Promise<Response> {
+  if (!checkAuth(request, env)) return unauthorized(corsHeaders(request));
+
+  if (!env.GITHUB_TOKEN) {
     return corsJson(
       { error: "GITHUB_TOKEN not configured. See /optimize/dispatch JSDoc." },
       request,
@@ -794,42 +857,15 @@ async function handleOptimizeDispatch(request: Request, env: Env): Promise<Respo
     /* body buit o no-JSON — fallback a tota la taula */
   }
 
-  try {
-    const resp = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ghToken}`,
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-          // GitHub API requereix User-Agent.
-          "User-Agent": "reus-refugi-pdf-worker",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-        body: JSON.stringify({ ref: "main", inputs: { record } }),
-      },
-    );
-
-    if (!resp.ok) {
-      const body = await resp.text();
-      console.error(`GitHub dispatch failed ${resp.status}:`, body);
-      return corsJson(
-        { error: `GitHub dispatch ${resp.status}`, detail: body.slice(0, 300) },
-        request,
-        502,
-      );
-    }
-    // GitHub respon 204 sense body en èxit.
+  const result = await dispatchOptimizeWorkflow(env, record);
+  if (!result.ok) {
     return corsJson(
-      { ok: true, dispatched: workflow, owner, repo, record: record || "(tota la taula)" },
+      { ok: false, error: result.error ?? "dispatch failed" },
       request,
+      result.status ?? 502,
     );
-  } catch (err) {
-    console.error("optimize/dispatch error:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return corsJson({ ok: false, error: message }, request, 500);
   }
+  return corsJson({ ok: true, record: record || "(tota la taula)" }, request);
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -44,6 +44,10 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
 
   const WORKER_URL = '__WORKER_URL__';
   const SHARED_SECRET = '__SHARED_SECRET__';
+  // Versió visible al subtítol del modal — útil per confirmar amb voluntaris
+  // si han actualitzat (Tampermonkey re-comprova diàriament; també poden
+  // forçar-ho amb "Check for updates").
+  const VENUS_VERSION = '__VERSION__';
 
   // ─── Límits de mida de Mercurio ─────────────────────────────────────
   // Mercurio rebutja amb un HTTP 500 opac els fitxers grans (límit declarat
@@ -689,7 +693,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         <span class="venus-heart">\${ICON_HEART}</span>
         <span class="venus-title">Venus</span>
         <span class="venus-sep">—</span>
-        <span class="venus-subtitle">\${modeText('subtitle')}</span>
+        <span class="venus-subtitle">v\${VENUS_VERSION}</span>
         <span class="venus-count" id="venus-count"></span>
       </div>
       <div class="venus-search-wrap">

@@ -152,6 +152,7 @@ async function clearAttachmentField(recordId: string): Promise<void> {
 async function uploadAttachment(
   recordId: string,
   filename: string,
+  contentType: string,
   bytes: Buffer,
 ): Promise<void> {
   // Endpoint dedicat per a binari. NO és api.airtable.com sino content.*.
@@ -163,7 +164,7 @@ async function uploadAttachment(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      contentType: "application/pdf",
+      contentType,
       file: bytes.toString("base64"),
       filename,
     }),
@@ -249,94 +250,127 @@ async function main() {
   const records = await listAllDocuments();
   console.log(`   ${records.length} records totals\n`);
 
+  // Mida total dels PDFs adjunts d'un record (per filtrar i ordenar). Per
+  // a multi-attachment, Mercurio acaba rebent un PDF fusionat de tots →
+  // la mida que importa és la suma, no la del primer adjunt.
+  const pdfTotal = (r: Record): number => {
+    const atts = (r.fields[ATTACHMENT_FIELD_ID] as Attachment[]) ?? [];
+    return atts.filter((a) => a.type?.includes("pdf")).reduce((s, a) => s + a.size, 0);
+  };
+
   const candidates = records
     .filter((r) => {
-      if (SINGLE_RECORD && r.id !== SINGLE_RECORD) return false;
-      const atts = r.fields[ATTACHMENT_FIELD_ID] as Attachment[] | undefined;
-      const f = atts?.[0];
-      if (!f || !f.type?.includes("pdf")) return false;
-      if (!SINGLE_RECORD && f.size < THRESHOLD_MB * 1e6) return false;
-      return true;
+      if (SINGLE_RECORD) return r.id === SINGLE_RECORD;
+      return pdfTotal(r) > THRESHOLD_MB * 1e6;
     })
-    .sort((a, b) => {
-      const sa = (a.fields[ATTACHMENT_FIELD_ID] as Attachment[])[0].size;
-      const sb = (b.fields[ATTACHMENT_FIELD_ID] as Attachment[])[0].size;
-      return sb - sa;
-    })
+    .sort((a, b) => pdfTotal(b) - pdfTotal(a))
     .slice(0, LIMIT);
 
-  console.log(`🔍 ${candidates.length} candidats (PDF > ${THRESHOLD_MB}MB)`);
+  console.log(`🔍 ${candidates.length} candidats (PDF total > ${THRESHOLD_MB}MB)`);
 
   const tmpDir = mkdtempSync(join(tmpdir(), "airtable-opt-"));
   let totalBefore = 0;
   let totalAfter = 0;
+  interface Upload { bytes: Buffer; filename: string; contentType: string; method: string }
   const toApply: Array<{
     record: Record;
-    bytes: Buffer;
-    filename: string;
+    uploads: Upload[];
     before: number;
     after: number;
   }> = [];
 
   for (const r of candidates) {
-    const att = (r.fields[ATTACHMENT_FIELD_ID] as Attachment[])[0];
-    process.stdout.write(`  ${r.id} ${bytes(att.size).padStart(7)} → `);
+    const atts = (r.fields[ATTACHMENT_FIELD_ID] as Attachment[]) ?? [];
+    const recBefore = atts.reduce((s, a) => s + a.size, 0);
+    const label = atts.length === 1 ? "1 fitxer" : `${atts.length} fitxers`;
+    process.stdout.write(`  ${r.id} (${label}) ${bytes(recBefore).padStart(7)} → `);
 
-    try {
-      // Retry-once amb backoff 1s — les URLs signades de Airtable a vegades
-      // donen "fetch failed" sota burst (potser anti-burst del CDN).
-      let dl: Response | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          dl = await fetch(att.url);
-          if (dl.ok) break;
-          if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
-        } catch (e) {
-          if (attempt === 1) throw e;
-          await new Promise((r) => setTimeout(r, 1000));
+    const uploads: Upload[] = [];
+    let recAfter = 0;
+    let anyCompressed = false;
+    let recordFailed = false;
+    const perFileLog: string[] = [];
+
+    for (let i = 0; i < atts.length; i++) {
+      const att = atts[i];
+      // Download amb retry — URLs signades d'Airtable poden 5xx sota burst.
+      let inBuf: Buffer;
+      try {
+        let dl: Response | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            dl = await fetch(att.url);
+            if (dl.ok) break;
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
+          } catch (e) {
+            if (attempt === 1) throw e;
+            await new Promise((r) => setTimeout(r, 1000));
+          }
         }
+        if (!dl || !dl.ok) throw new Error(`download ${dl?.status ?? "fetch failed"}`);
+        inBuf = Buffer.from(await dl.arrayBuffer());
+      } catch (e: any) {
+        // Si fallem a descarregar QUALSEVOL adjunt, abortem el record
+        // sencer — millor no aplicar res que substituir parcialment.
+        console.log(`\x1b[31mERROR\x1b[0m descàrrega ${att.filename}: ${e.message?.slice(0, 60) ?? e}`);
+        recordFailed = true;
+        break;
       }
-      if (!dl || !dl.ok) throw new Error(`download ${dl?.status ?? "fetch failed"}`);
-      const inBuf = Buffer.from(await dl.arrayBuffer());
-      const inPath = join(tmpDir, r.id + ".pdf");
-      const outPath = join(tmpDir, r.id + ".opt.pdf");
-      writeFileSync(inPath, inBuf);
 
+      const isPdf = att.type?.includes("pdf");
+      const contentType = att.type ?? "application/octet-stream";
+
+      // No-PDF o PDF petit: mantenim l'original tal qual.
+      if (!isPdf || inBuf.length < THRESHOLD_MB * 1e6) {
+        uploads.push({ bytes: inBuf, filename: att.filename, contentType, method: "kept" });
+        recAfter += inBuf.length;
+        continue;
+      }
+
+      // Comprimim aquest PDF.
+      const inPath = join(tmpDir, `${r.id}-${i}.pdf`);
+      const outPath = join(tmpDir, `${r.id}-${i}.opt`);
+      writeFileSync(inPath, inBuf);
       const best = compressBest(inPath, outPath, TARGET_MB * 1e6);
+
       if (!best) {
-        console.log(`\x1b[31mERROR\x1b[0m no compressors available`);
+        uploads.push({ bytes: inBuf, filename: att.filename, contentType: "application/pdf", method: "no-compressor" });
+        recAfter += inBuf.length;
         continue;
       }
 
       const reductionPct = (1 - best.bytes.length / inBuf.length) * 100;
-      totalBefore += inBuf.length;
-      totalAfter += best.bytes.length;
-
       if (reductionPct < MIN_REDUCTION_PCT) {
-        // Si totes dues fan créixer, comptem com a "no estalvi"
-        totalAfter -= best.bytes.length;
-        totalAfter += inBuf.length;
-        console.log(
-          `\x1b[90mskip\x1b[0m  best ${best.method} → ${bytes(best.bytes.length).padStart(7)} (only ${reductionPct >= 0 ? "-" : "+"}${Math.abs(reductionPct).toFixed(0)}%)`,
-        );
-        continue;
+        // Estalvi insuficient en aquest fitxer — mantenim original.
+        uploads.push({ bytes: inBuf, filename: att.filename, contentType: "application/pdf", method: `kept (-${reductionPct.toFixed(0)}%)` });
+        recAfter += inBuf.length;
+      } else {
+        uploads.push({ bytes: best.bytes, filename: att.filename, contentType: "application/pdf", method: best.method });
+        recAfter += best.bytes.length;
+        anyCompressed = true;
+        perFileLog.push(`      ${att.filename}: ${bytes(inBuf.length)} → ${bytes(best.bytes.length)}  -${reductionPct.toFixed(0)}%  ${best.method}`);
       }
-
-      const overTarget = best.bytes.length > TARGET_MB * 1e6;
-      console.log(
-        `\x1b[32m${bytes(best.bytes.length).padStart(7)}\x1b[0m  -${reductionPct.toFixed(0)}%  ${best.method}` +
-          (overTarget ? `  \x1b[33m⚠ encara > ${TARGET_MB}MB\x1b[0m` : ""),
-      );
-      toApply.push({
-        record: r,
-        bytes: best.bytes,
-        filename: att.filename,
-        before: inBuf.length,
-        after: best.bytes.length,
-      });
-    } catch (e: any) {
-      console.log(`\x1b[31mERROR\x1b[0m ${e.message?.slice(0, 80) ?? e}`);
     }
+
+    if (recordFailed) continue;
+
+    totalBefore += recBefore;
+    totalAfter += recAfter;
+
+    if (!anyCompressed) {
+      console.log(`\x1b[90mskip\x1b[0m  cap fitxer amb prou estalvi`);
+      continue;
+    }
+
+    const recReductionPct = (1 - recAfter / recBefore) * 100;
+    const overTarget = recAfter > TARGET_MB * 1e6;
+    console.log(
+      `\x1b[32m${bytes(recAfter).padStart(7)}\x1b[0m  -${recReductionPct.toFixed(0)}%` +
+        (overTarget ? `  \x1b[33m⚠ encara > ${TARGET_MB}MB\x1b[0m` : ""),
+    );
+    if (atts.length > 1) for (const ln of perFileLog) console.log(ln);
+    toApply.push({ record: r, uploads, before: recBefore, after: recAfter });
+
     // Pause mínima entre records — evita burst patterns que disparen el
     // anti-CDN d'Airtable (URLs signades tornen 5xx sota càrrega ràpida).
     await new Promise((r) => setTimeout(r, 300));
@@ -368,21 +402,24 @@ async function main() {
   let applied = 0;
   let failed = 0;
   for (const t of toApply) {
-    process.stdout.write(`  ${t.record.id} `);
+    const label = t.uploads.length === 1 ? "1 fitxer" : `${t.uploads.length} fitxers`;
+    process.stdout.write(`  ${t.record.id} (${label}) `);
     try {
       // Patró Worker existent: clear field + upload nou. uploadAttachment
-      // afegiria al camp; per sobreescriure cal el clear primer.
+      // afegeix al camp; per sobreescriure tot, clear primer i després
+      // pujar els N adjunts en ordre.
       await clearAttachmentField(t.record.id);
-      await uploadAttachment(t.record.id, t.filename, t.bytes);
+      for (const u of t.uploads) {
+        await uploadAttachment(t.record.id, u.filename, u.contentType, u.bytes);
+        // Pause to respect Airtable's 5 req/sec per-base limit.
+        await new Promise((r) => setTimeout(r, 250));
+      }
       console.log(`\x1b[32m✅\x1b[0m  ${bytes(t.before)} → ${bytes(t.after)}`);
       applied++;
     } catch (e: any) {
       console.log(`\x1b[31m❌\x1b[0m ${e.message?.slice(0, 100) ?? e}`);
       failed++;
     }
-    // Pause to respect Airtable's 5 req/sec per-base limit (each substitution
-    // takes 2 calls — clear + upload — so 250ms = ~4 ops/sec is safe).
-    await new Promise((r) => setTimeout(r, 250));
   }
 
   rmSync(tmpDir, { recursive: true });

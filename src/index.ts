@@ -19,7 +19,7 @@ import { airtableToMercurio, getFormulario, type AirtableCase, type PresentadorC
 import { USERSCRIPT_TEMPLATE } from "./mercurio/userscriptCode";
 import { mergeToPdf, countPdfPages, UnsupportedFormatError, type MergeInput } from "./mercurio/mergeDocs";
 
-const USERSCRIPT_VERSION = "1.5.3";
+const USERSCRIPT_VERSION = "1.5.4";
 
 export interface Env {
   // Secrets

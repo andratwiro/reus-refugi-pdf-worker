@@ -696,7 +696,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         <span class="venus-search-icon">\${ICON_SEARCH}</span>
         <input id="venus-search" type="text" class="venus-search-input" placeholder="Cerca per nom o cognom…" autocomplete="off" spellcheck="false">
       </div>
-      <div id="venus-results" class="venus-results"></div>
+      <div id="venus-results" class="venus-results" style="display:none"></div>
       <div id="venus-status" class="venus-status"></div>
       <div class="venus-footer">
         <span class="venus-footer-icon">\${ICON_INFO}</span>
@@ -713,10 +713,16 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     let timer = null;
     search.addEventListener('input', () => {
       clearTimeout(timer);
+      // Llista oculta mentre la cerca és buida — així el panell no tapa la
+      // navegació de la pàgina. Només es renderitza en escriure.
+      if (!search.value.trim()) {
+        results.style.display = 'none';
+        results.innerHTML = '';
+        count.textContent = '';
+        return;
+      }
       timer = setTimeout(() => doSearch(search.value, results, status, count), 250);
     });
-    // Cerca inicial buida = darrers casos
-    doSearch('', results, status, count);
   }
 
   // ─── Mode (segons URL) ──────────────────────────────────────────────
@@ -848,6 +854,7 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
   }
 
   async function doSearch(q, container, status, count) {
+    container.style.display = 'flex';
     container.innerHTML = '<div class="venus-empty">Cercant…</div>';
     count.textContent = '';
     try {
@@ -891,7 +898,15 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
             <span class="venus-row-hint-focus">↵ Enter</span>
           </span>
         \`;
-        row.addEventListener('click', () => fillCase(c, status, row));
+        row.addEventListener('click', () => {
+          // En clicar un cas, plega la llista: deixa només la fila clicada
+          // visible (amb el seu estat) + la barra de progrés a sota.
+          for (const r of Array.from(container.children)) {
+            if (r !== row) r.remove();
+          }
+          count.textContent = '';
+          fillCase(c, status, row);
+        });
         container.appendChild(row);
       }
     } catch (e) {

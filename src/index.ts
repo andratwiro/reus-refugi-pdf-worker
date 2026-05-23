@@ -480,9 +480,14 @@ const DOCS_ATTACHMENT_FIELD = "Fitxer";
 const DOCS_TYPE_FIELD = "Mercurio tipus document";
 const DOCS_REFERENCE_FIELD = "Referència";
 
-// Límit de Mercurio per fitxer. Documents per sobre disparen una re-optimització
-// automàtica (Fase 3) quan el userscript carrega el cas.
+// Límit de Mercurio per fitxer.
 const MERCURIO_MAX_DOC_BYTES = 6 * 1024 * 1024;
+
+// Llindar d'optimització: documents per sobre disparen una re-optimització
+// automàtica (Fase 3) quan el userscript carrega el cas. Coincideix amb el
+// --threshold-mb del script, de manera que qualsevol fitxer que s'hagi saltat
+// l'Automation queda cobert la propera vegada que un voluntari obri el cas.
+const OPTIMIZE_THRESHOLD_BYTES = 1 * 1024 * 1024;
 
 // Sanitize filename per Mercurio (i per Content-Disposition). Mercurio valida
 // per extensió, no accepta path separators ni cometes als noms.
@@ -606,10 +611,10 @@ async function handleMercurioDocuments(
   // sense afegir latència a la resposta). Cobreix el cas que l'Airtable
   // Automation s'hagués perdut el trigger d'upload — només obrir el cas al
   // userscript ja reactiva la compressió.
-  const oversize = documents.filter((d) => d.sizeBytes > MERCURIO_MAX_DOC_BYTES);
+  const oversize = documents.filter((d) => d.sizeBytes > OPTIMIZE_THRESHOLD_BYTES);
   if (oversize.length > 0) {
     console.log(
-      `caso ${caso}: ${oversize.length} document(s) oversize — re-dispatch optimització:`,
+      `caso ${caso}: ${oversize.length} document(s) per optimitzar — re-dispatch:`,
       oversize.map((d) => d.airtableId).join(", "),
     );
     ctx.waitUntil(

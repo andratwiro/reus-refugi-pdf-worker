@@ -137,11 +137,15 @@ function mapSexo(s: string | undefined): string {
   return '';
 }
 
-/** Estat civil Airtable "Casat/da (C)" → Mercurio "C" */
+/** Estat civil Airtable "Casat/da (C)" → Mercurio "C"
+ *  "Separat/da (Sp)" → "P" (Sp is the Catalan abbrev; Mercurio uses P=Separado) */
 function mapEstadoCivil(s: string | undefined): string {
   if (!s) return '';
-  const m = s.match(/\(([A-Z])\)/);
-  return m ? m[1] : '';
+  const m = s.match(/\(([A-Z][a-z]?)\)/);
+  if (!m) return '';
+  const raw = m[1];
+  const normalize: Record<string, string> = { 'Sp': 'P' };
+  return normalize[raw] ?? raw;
 }
 
 /** Extreu codi entre parèntesis: "COLOMBIA (212)" → "212" */

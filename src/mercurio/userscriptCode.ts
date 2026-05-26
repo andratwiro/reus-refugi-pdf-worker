@@ -64,6 +64,10 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
     'preCodigoProvinciaPresentador', 'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador',
   ]);
   const SKIP_FIELDS = new Set([
+    // reaCodigoProvinciaReagrupante: hidden/inaccessible in the UI for non-dependent
+    // cases. Skipping prevents Venus from firing the change event that triggers
+    // Mercurio's getMunicipios handler and resets extCodigoMunicipio/Localidad.
+    'reaCodigoProvinciaReagrupante',
     'reaCodigoMunicipioReagrupante', 'reaCodigoLocalidadReagrupante',
     'preCodigoMunicipioPresentador', 'preCodigoLocalidadPresentador',
     'preNombrePresentador', 'preTipodocumentoPresentador', 'preNiePresentador',
@@ -115,6 +119,12 @@ export const USERSCRIPT_TEMPLATE = `// ==UserScript==
         // event sol no els activa.
         for (const r of els) if (r.value === value) { r.click(); break; }
         return { name, status: 'ok', value };
+      }
+      // Respect the HTML maxlength — el.value assignment bypasses it, so we
+      // enforce it here and surface it as an error rather than silently
+      // submitting a value the server's DB column will reject.
+      if (el.maxLength > 0 && String(value).length > el.maxLength) {
+        return { name, status: 'invalid_maxlength', value, maxLength: el.maxLength };
       }
       el.value = value;
       fireEvents(el, ['input', 'change']);

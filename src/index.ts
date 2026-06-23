@@ -349,7 +349,7 @@ async function handleMercurioCases(request: Request, env: Env): Promise<Response
   // Llegim per NAMES (no IDs) perquè el mapper compartit treballa per nom.
   const records = await at.listRecords(env.CASOS_TABLE_ID, {
     byFieldId: false,
-    maxRecords: 200,
+    maxRecords: 500,
   });
 
   const matches = [];

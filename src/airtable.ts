@@ -98,7 +98,7 @@ export class AirtableClient {
 
   /**
    * List records from a table, optionally with a filterByFormula.
-   * Auto-paginates fins a `maxRecords` (default 200, suficient per Reus Refugi).
+   * Auto-paginates fins a `maxRecords` (default 200; /mercurio/cases usa 500).
    */
   async listRecords(
     tableId: string,

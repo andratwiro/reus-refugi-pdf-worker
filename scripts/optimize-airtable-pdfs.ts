@@ -143,18 +143,12 @@ async function listAllDocuments(): Promise<Record[]> {
   return out;
 }
 
-async function clearAttachmentField(recordId: string): Promise<void> {
-  await airtable("PATCH", `/${BASE_ID}/${TABLE_ID}/${recordId}`, {
-    fields: { [ATTACHMENT_FIELD_ID]: [] },
-  });
-}
-
 async function uploadAttachment(
   recordId: string,
   filename: string,
   contentType: string,
   bytes: Buffer,
-): Promise<void> {
+): Promise<string> {
   // Endpoint dedicat per a binari. NO és api.airtable.com sino content.*.
   const url = `https://content.airtable.com/v0/${BASE_ID}/${recordId}/${ATTACHMENT_FIELD_ID}/uploadAttachment`;
   const resp = await fetch(url, {
@@ -172,6 +166,95 @@ async function uploadAttachment(
   if (!resp.ok) {
     throw new Error(`uploadAttachment ${resp.status}: ${await resp.text()}`);
   }
+  // La resposta porta el record sencer; l'adjunt nou és l'últim del camp.
+  const data = await resp.json();
+  const list = (data?.fields?.[ATTACHMENT_FIELD_ID] as Attachment[] | undefined) ?? [];
+  const added = list[list.length - 1]?.id;
+  if (!added) throw new Error(`uploadAttachment: resposta sense id d'adjunt`);
+  return added;
+}
+
+/** Deixa al camp NOMÉS els adjunts indicats (per id), en aquest ordre. */
+async function keepOnlyAttachments(recordId: string, ids: string[]): Promise<void> {
+  await airtable("PATCH", `/${BASE_ID}/${TABLE_ID}/${recordId}`, {
+    fields: { [ATTACHMENT_FIELD_ID]: ids.map((id) => ({ id })) },
+  });
+}
+
+/**
+ * Compta pàgines d'un PDF amb ghostscript. Retorna -1 si no es pot llegir.
+ */
+function pdfPageCount(path: string): number {
+  try {
+    const out = execSync(
+      `gs -q -dNODISPLAY -dNOSAFER -c "(${path}) (r) file runpdfbegin pdfpagecount = quit"`,
+      { stdio: "pipe", timeout: 60_000 },
+    ).toString().trim();
+    const n = parseInt(out.split(/\s+/).pop() ?? "", 10);
+    return Number.isFinite(n) ? n : -1;
+  } catch {
+    return -1;
+  }
+}
+
+/**
+ * Cobertura de tinta per pàgina (% C+M+Y+K, renderitzat a 20dpi amb el
+ * device `ink_cov` de gs). 0 = pàgina totalment blanca. Retorna null si gs
+ * no pot renderitzar el fitxer.
+ */
+function pageInk(path: string): number[] | null {
+  try {
+    const out = execSync(`gs -q -o - -sDEVICE=ink_cov -r20 "${path}"`, {
+      stdio: "pipe",
+      timeout: 120_000,
+    }).toString();
+    const rows = out
+      .split("\n")
+      .filter((l) => /CMYK OK\s*$/.test(l))
+      .map((l) => l.trim().split(/\s+/).slice(0, 4).reduce((a, v) => a + parseFloat(v), 0));
+    return rows.length > 0 ? rows : null;
+  } catch {
+    return null;
+  }
+}
+
+// Llindars de la guarda anti-pàgines-en-blanc. Incident 2026-05: gs va
+// produir PDFs d'1 pàgina BUIDA (2202 bytes) per a dos documents (passaport
+// + proves de permanència) i el script els va pujar perquè eren la variant
+// "més petita". Una pàgina buida de gs pesa ~2.2KB; una pàgina escanejada
+// real, fins i tot a 72dpi/q35, pesa >15KB.
+const MIN_BYTES_PER_PAGE = 5000;
+// Una pàgina de l'original amb més d'aquest % de tinta que a la sortida
+// queda per sota de BLANK_INK_PCT s'ha perdut → rebutgem la variant.
+const CONTENT_INK_PCT = 0.2;
+const BLANK_INK_PCT = 0.02;
+
+/**
+ * Comprova que la versió comprimida és plausible abans de substituir
+ * l'original: mateix nombre de pàgines, mida mínima per pàgina i cap pàgina
+ * que tingués contingut a l'original i surti en blanc.
+ * Retorna null si és acceptable, o el motiu del rebuig.
+ */
+function rejectReason(
+  inPages: number,
+  inInk: number[] | null,
+  outPath: string,
+  outBytes: number,
+): string | null {
+  const outPages = pdfPageCount(outPath);
+  if (outPages < 1) return `sortida il·legible (${outPages} pàgines)`;
+  if (inPages > 0 && outPages !== inPages) return `pàgines ${inPages} → ${outPages}`;
+  if (outBytes / outPages < MIN_BYTES_PER_PAGE)
+    return `${bytes(outBytes)} per ${outPages} pàg. (< ${MIN_BYTES_PER_PAGE}B/pàg — probablement en blanc)`;
+  const outInk = pageInk(outPath);
+  if (!outInk) return `no es pot renderitzar la sortida`;
+  if (inInk) {
+    for (let i = 0; i < Math.min(inInk.length, outInk.length); i++) {
+      if (inInk[i] > CONTENT_INK_PCT && outInk[i] < BLANK_INK_PCT)
+        return `pàgina ${i + 1} surt en blanc (tinta ${inInk[i].toFixed(2)}% → ${outInk[i].toFixed(3)}%)`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -193,7 +276,7 @@ function compressBest(
   baseOutPath: string,
   targetBytes: number,
 ): { bytes: Buffer; method: string } | null {
-  const candidates: Array<{ bytes: Buffer; method: string }> = [];
+  const candidates: Array<{ bytes: Buffer; method: string; path: string }> = [];
 
   // Timeout generós — escanejos molt grans (50MB+) amb diverses passades de
   // magick poden trigar. El workflow té timeout-minutes:15 de marge.
@@ -205,15 +288,18 @@ function compressBest(
   // B) Ghostscript /ebook
   try {
     const bPath = baseOutPath + ".gs.pdf";
+    // -dPDFSTOPONERROR: si el PDF té errors, gs ha de FALLAR, no continuar
+    // en silenci i escriure pàgines a mitges o buides.
     execSync(
       `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook ` +
-        `-dNOPAUSE -dBATCH -dQUIET -dDetectDuplicateImages=true ` +
+        `-dNOPAUSE -dBATCH -dQUIET -dPDFSTOPONERROR -dDetectDuplicateImages=true ` +
         `-sOutputFile="${bPath}" "${inPath}"`,
       EXEC_OPTS,
     );
-    candidates.push({ bytes: readFileSync(bPath), method: "gs:/ebook" });
-  } catch (e) {
-    // ignore
+    candidates.push({ bytes: readFileSync(bPath), method: "gs:/ebook", path: bPath });
+  } catch (e: any) {
+    const err = (e?.stderr?.toString() ?? e?.message ?? "").trim().split("\n").slice(-2).join(" | ");
+    console.log(`\x1b[90m      gs ha fallat: ${err.slice(0, 120)}\x1b[0m`);
   }
 
   // A) ImageMagick rasteritzat, escalat. Parem tan bon punt una variant
@@ -227,7 +313,7 @@ function compressBest(
           `${MAGICK_CMD} -density ${density} "${inPath}" -compress jpeg -quality ${quality} "${aPath}"`,
           EXEC_OPTS,
         );
-        candidates.push({ bytes: readFileSync(aPath), method: `${MAGICK_CMD}:${density}dpi/q${quality}` });
+        candidates.push({ bytes: readFileSync(aPath), method: `${MAGICK_CMD}:${density}dpi/q${quality}`, path: aPath });
       } catch (e) {
         // Pot fallar per policy.xml d'Ubuntu (PDF blocked per CVE 2018) o PDFs corruptes.
       }
@@ -235,10 +321,28 @@ function compressBest(
     }
   }
 
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => a.bytes.length - b.bytes.length);
-  return candidates[0];
+  // Guarda de seguretat: descartem qualsevol variant sospitosa (pàgines
+  // perdudes o en blanc) ABANS de triar la més petita. Incident 2026-05:
+  // gs va tornar 1 pàgina buida (2202 bytes) per a dos documents i, sent
+  // la variant "més petita", es va pujar a Airtable substituint l'original.
+  const inPages = pdfPageCount(inPath);
+  const inInk = pageInk(inPath);
+  // Si gs no pot renderitzar l'original (o el veu tot blanc), CAP variant
+  // derivada de gs/magick és fiable — magick també delega en gs per a PDF.
+  if (!inInk || inInk.every((v) => v < BLANK_INK_PCT)) {
+    console.log(`\x1b[33m      gs no renderitza l'original (${inInk ? "tot en blanc" : "error"}) — mantenim original\x1b[0m`);
+    return null;
+  }
+  const valid = candidates.filter((c) => {
+    const reason = rejectReason(inPages, inInk, c.path, c.bytes.length);
+    if (reason) console.log(`\x1b[33m      rebutjat ${c.method}: ${reason}\x1b[0m`);
+    return !reason;
+  });
+  if (valid.length === 0) return null;
+  valid.sort((a, b) => a.bytes.length - b.bytes.length);
+  return valid[0];
 }
+
 
 // ─── Main ────────────────────────────────────────────────────────────
 async function main() {
@@ -404,21 +508,32 @@ async function main() {
   for (const t of toApply) {
     const label = t.uploads.length === 1 ? "1 fitxer" : `${t.uploads.length} fitxers`;
     process.stdout.write(`  ${t.record.id} (${label}) `);
+    // MAI esborrem l'original abans de tenir la versió nova pujada: primer
+    // pugem els N adjunts (s'afegeixen al camp), i només si TOTS han pujat
+    // deixem al camp els nous. Si alguna pujada falla, retirem els nous
+    // pujats a mitges i l'original queda intacte.
+    const oldIds = ((t.record.fields[ATTACHMENT_FIELD_ID] as Attachment[]) ?? []).map((a) => a.id);
+    const newIds: string[] = [];
     try {
-      // Patró Worker existent: clear field + upload nou. uploadAttachment
-      // afegeix al camp; per sobreescriure tot, clear primer i després
-      // pujar els N adjunts en ordre.
-      await clearAttachmentField(t.record.id);
       for (const u of t.uploads) {
-        await uploadAttachment(t.record.id, u.filename, u.contentType, u.bytes);
+        newIds.push(await uploadAttachment(t.record.id, u.filename, u.contentType, u.bytes));
         // Pause to respect Airtable's 5 req/sec per-base limit.
         await new Promise((r) => setTimeout(r, 250));
       }
+      await keepOnlyAttachments(t.record.id, newIds);
       console.log(`\x1b[32m✅\x1b[0m  ${bytes(t.before)} → ${bytes(t.after)}`);
       applied++;
     } catch (e: any) {
       console.log(`\x1b[31m❌\x1b[0m ${e.message?.slice(0, 100) ?? e}`);
       failed++;
+      if (newIds.length > 0) {
+        try {
+          await keepOnlyAttachments(t.record.id, oldIds);
+          console.log(`     revertit: original intacte (${oldIds.length} adjunts)`);
+        } catch (e2: any) {
+          console.log(`     ⚠ no s'ha pogut netejar els adjunts parcials: ${e2.message?.slice(0, 80)}`);
+        }
+      }
     }
   }
 

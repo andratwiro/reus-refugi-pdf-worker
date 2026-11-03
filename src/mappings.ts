@@ -77,10 +77,7 @@ export const ANEXO2_AIRTABLE_FIELDS = {
   email: "fld36a7AAARLJUKlE",          // "Email" (email)
   factors: "fldmv1XoELN9E1KR7",        // "Factors vulnerabilitat" (multipleSelects)
 
-  // TODO: "Altres factors" field ID — encara no capturat. Mentre no hi sigui,
-  // el Otros (especificar) i la Casilla 65 del PDF quedaran buits.
-  // Rob: obre Airtable → field Altres factors → Edit field → copia l'ID "fld..."
-  altresFactors: "",
+  altresFactors: "flds3CRSztgOkwfs7",  // "Altres factors (text)" (singleLineText)
 } as const;
 
 /**

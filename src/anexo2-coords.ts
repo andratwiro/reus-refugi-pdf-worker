@@ -37,7 +37,9 @@ export const ANEXO2_COORDS: Record<string, AnexoIIWidgetCoord> = {
   "Texto157": { page: 0, type: "text", x: 237.79, y: 332.93, w: 78.99, h: 11.33 },
   "Texto158": { page: 0, type: "text", x: 354.77, y: 332.60, w: 173.63, h: 11.33 },
   "Signature": { page: 1, type: "signature", x: 398.75, y: 586.45, w: 89.56, h: 43.90 },
-  "Casilla de verificación65": { page: 1, type: "check", x: 34.50, y: 786.42, w: 6.33, h: 7.67 },
+  // Corregit a mà (era y 786.42): al PDF oficial el □ d'"Otros" cau 5.7pt més
+  // avall que els de la pàgina 1 respecte del seu widget; la X sortia per sobre.
+  "Casilla de verificación65": { page: 1, type: "check", x: 34.50, y: 780.72, w: 6.33, h: 7.67 },
   "Texto159": { page: 1, type: "text", x: 116.81, y: 785.18, w: 419.59, h: 11.33 },
   "Texto160": { page: 1, type: "text", x: 211.46, y: 610.54, w: 207.63, h: 11.33 },
   "Texto161": { page: 1, type: "text", x: 61.16, y: 563.82, w: 196.63, h: 11.33 },

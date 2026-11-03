@@ -62,6 +62,7 @@ export interface FillAnexo2Options {
 }
 
 const FONT_SIZE = 10;
+const MIN_FONT_SIZE = 7;
 const SIGNATURE_KEY = "Signature";
 
 export async function fillAnexo2Pdf(
@@ -83,19 +84,42 @@ export async function fillAnexo2Pdf(
   // PDF governamental imprès.
   const TEXT_BASELINE_OFFSET = 5;
 
-  const drawTextAt = (key: string, value: string): void => {
+  // Helvetica (WinAnsi) no pot codificar àrab, ciríl·lic, etc.: drawText
+  // llançaria i el certificat sencer fallaria. Traiem els caràcters que la
+  // font no té en lloc de petar.
+  const encodable = new Set(helvetica.getCharacterSet());
+  const drawable = (s: string): string =>
+    Array.from(s)
+      .filter((ch) => encodable.has(ch.codePointAt(0)!))
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const drawTextAt = (key: string, raw: string): void => {
+    const value = drawable(raw);
     if (!value) return;
     const c = ANEXO2_COORDS[key];
     if (!c || c.type !== "text") return;
     const page = pages[c.page];
     if (!page) return;
-    page.drawText(value, {
-      x: c.x + 3,
-      y: c.y + TEXT_BASELINE_OFFSET,
-      size: FONT_SIZE,
-      font: helvetica,
-      color: rgb(0, 0, 0),
-      maxWidth: c.w - 6,
+    // Un text llarg es redueix fins a MIN_FONT_SIZE per cabre a la línia; si
+    // ni així hi cap, es parteix en línies que pugen des de la línia
+    // "_____" (l'última hi queda assentada; cap travessa el text de sota).
+    const maxWidth = c.w - 6;
+    let size = FONT_SIZE;
+    while (size > MIN_FONT_SIZE && helvetica.widthOfTextAtSize(value, size) > maxWidth) {
+      size -= 0.5;
+    }
+    const lines = wrapWords(value, (t) => helvetica.widthOfTextAtSize(t, size), maxWidth);
+    const lineHeight = size + 1;
+    lines.forEach((line, i) => {
+      page.drawText(line, {
+        x: c.x + 3,
+        y: c.y + TEXT_BASELINE_OFFSET + (lines.length - 1 - i) * lineHeight,
+        size,
+        font: helvetica,
+        color: rgb(0, 0, 0),
+      });
     });
   };
 
@@ -265,6 +289,23 @@ function composeAddressOneLine(E: EntitatConfig): string {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Parteix per paraules en línies que no passen de maxWidth. */
+function wrapWords(text: string, width: (t: string) => number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(" ")) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && width(next) > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
 function strOf(v: unknown): string {
   if (v == null) return "";

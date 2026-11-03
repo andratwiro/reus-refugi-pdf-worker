@@ -26,8 +26,9 @@
  */
 
 // ⚠️  Canvia aquests dos valors abans de desar ⚠️
-const WORKER_URL = "https://reus-refugi-pdf-worker.YOUR-SUBDOMAIN.workers.dev";
+const WORKER_URL = "https://reus-refugi-pdf-worker.info4132.workers.dev";
 const SHARED_SECRET = "PASTE-THE-SAME-SECRET-YOU-SET-IN-WRANGLER";
+const SCRIPT_VERSION = "2.0 (remoteFetchAsync)";
 
 const TABLE_NAME = "Informes de Vulnerabilitat";
 const PDF_FIELD = "Informe generat";   // multipleAttachments — INFORMES_VULN_PDF_FIELD
@@ -40,7 +41,7 @@ if (!record) {
   return;
 }
 
-output.markdown(`⏳ Generant informe per **${record.name}**...`);
+output.markdown(`⏳ Generant informe per **${record.name}**... _(script ${SCRIPT_VERSION})_`);
 
 // Marquem el moment de la sol·licitud per a la verificació post-fail.
 // Si el fetch falla però el worker va completar la generació mentre la
@@ -140,18 +141,16 @@ async function callWorkerWithRetry(url, secret, body) {
 //   - Cloudflare Worker cold start + 524.
 // ─────────────────────────────────────────────────────────────────────────
 async function callWorker(url, secret, body) {
-  // POST "simple" — no dispara CORS preflight perquè:
-  //  - Content-Type: text/plain (els 3 valors "simples" són text/plain,
-  //    application/x-www-form-urlencoded i multipart/form-data)
-  //  - cap Authorization header (Authorization sempre dispara preflight)
-  //
-  // El secret va dins el body JSON. Necessari per a Scripting Extensions
-  // de Dashboards d'Airtable, on el sandbox de l'iframe rebutja preflights
-  // cap a *.workers.dev silenciosament → fetch() rejecta amb NetworkError
-  // indistingible d'un DNS fail.
+  // remoteFetchAsync: la crida surt dels servidors d'Airtable, no del
+  // navegador, així que no hi ha CORS ni sandbox de l'iframe pel mig (el
+  // fetch() del navegador fallava amb un NetworkError opac). És el mateix
+  // camí que fa servir airtable-extension-casos-email.js. Si no existeix
+  // (entorn antic), tornem al fetch "simple": text/plain + secret al body,
+  // sense Authorization, per no disparar preflight.
+  const doFetch = typeof remoteFetchAsync === "function" ? remoteFetchAsync : fetch;
   let response;
   try {
-    response = await fetch(url, {
+    response = await doFetch(url, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ ...body, secret }),

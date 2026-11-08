@@ -319,6 +319,9 @@ function corsJson(data: unknown, request: Request, status = 200): Response {
  * va embedded al userscript).
  */
 function handleUserscript(request: Request, env: Env): Response {
+  // CONTAINMENT 8 Nov 2026: this route used to inline env.SHARED_SECRET for anyone.
+  // Closed until per-volunteer tokens exist. Do not re-open with the secret in the body.
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain" } });
   const url = new URL(request.url);
   const baseUrl = `${url.protocol}//${url.host}`;
   const body = USERSCRIPT_TEMPLATE
